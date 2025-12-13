@@ -22,10 +22,10 @@ impl TryFrom<&[u8; 4]> for HeaderId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct Header {
+pub struct Header {
     pub identification: HeaderId,
-    pub num_lumps: u32,
-    pub info_table_offset: u32,
+    pub num_lumps: i32,
+    pub info_table_offset: i32,
 }
 
 impl TryFrom<&[u8; 12]> for Header {
@@ -34,8 +34,8 @@ impl TryFrom<&[u8; 12]> for Header {
     fn try_from(bytes: &[u8; 12]) -> Result<Self> {
         let header_id_bytes = [bytes[0], bytes[1], bytes[2], bytes[3]];
         let identification = HeaderId::try_from(&header_id_bytes)?;
-        let num_lumps = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
-        let info_table_offset = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+        let num_lumps = i32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+        let info_table_offset = i32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
         Ok(Header {
             identification,
             num_lumps,
