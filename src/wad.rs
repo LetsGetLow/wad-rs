@@ -61,7 +61,6 @@ impl WadReader {
             if is_marker(dir_ref.start(), dir_ref.end()) && is_map(&name) {
                 last_map_key = name.clone();
                 maps.insert(name, MapIndex::new());
-                dbg!(&last_map_key);
                 continue;
             }
 
@@ -73,7 +72,6 @@ impl WadReader {
             }
         }
 
-        dbg!(&maps);
         self.maps = maps;
     }
 
