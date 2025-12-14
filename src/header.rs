@@ -4,9 +4,9 @@ type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum HeaderId {
-    IWAD,
-    PWAD,
+pub enum HeaderId {
+    IWAD, // Internal WAD, contains main game data
+    PWAD, // Patch WAD; contains custom levels, graphics, etc.
 }
 
 impl TryFrom<&[u8; 4]> for HeaderId {
@@ -32,8 +32,7 @@ impl TryFrom<&[u8; 12]> for Header {
     type Error = Error;
 
     fn try_from(bytes: &[u8; 12]) -> Result<Self> {
-        let header_id_bytes = [bytes[0], bytes[1], bytes[2], bytes[3]];
-        let identification = HeaderId::try_from(&header_id_bytes)?;
+        let identification = HeaderId::try_from(&[bytes[0], bytes[1], bytes[2], bytes[3]])?;
         let num_lumps = i32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
         let info_table_offset = i32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
         Ok(Header {
