@@ -5,6 +5,21 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 const DIRECTORY_ENTRY_SIZE: usize = 16;
 const DIRECTORY_NAME_LENGTH: usize = 8;
 
+pub fn hash_from_name(name: &str) -> u64 {
+    let mut name_bytes = [0u8; DIRECTORY_NAME_LENGTH];
+    let bytes = name.as_bytes();
+    let len = bytes.len().min(DIRECTORY_NAME_LENGTH);
+    name_bytes[..len].copy_from_slice(&bytes[..len]);
+    u64::from_le_bytes(name_bytes)
+}
+
+pub fn name_from_hash(hash: u64) -> String {
+    let name_bytes = hash.to_le_bytes();
+    let end = name_bytes.iter().position(|&b| b == 0).unwrap_or(DIRECTORY_NAME_LENGTH);
+    let name_slice = &name_bytes[..end];
+    String::from_utf8_lossy(name_slice).to_ascii_uppercase().to_string()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DirectoryRef {
     start: usize,
@@ -46,24 +61,6 @@ impl DirectoryRef {
 
     pub fn is_marker(&self) -> bool {
         self.start == self.end
-    }
-
-    pub fn is_map_marker(&self, data: Arc<[u8]>) -> bool {
-        if !self.is_marker() {
-            return false;
-        }
-
-        let name = self.name(data);
-        if name.len() < 4 {
-            return false;
-        }
-
-        if name.starts_with("MAP") {
-            return true;
-        }
-
-        let n = name.as_bytes();
-        n[0] == b'E' && n[2] == b'M'
     }
 
     pub fn content(&self, data: Arc<[u8]>) -> Arc<[u8]> {

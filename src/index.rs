@@ -162,7 +162,6 @@ mod tests {
 
         let result = parse_tokens(tokens);
 
-        println!("Error: {}", result.as_ref().err().unwrap());
         assert!(result.is_err());
     }
 

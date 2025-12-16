@@ -1,9 +1,8 @@
 use crate::directory::DirectoryParser;
 use crate::header::{Header, MagicString};
 use crate::index::parse_tokens;
-use crate::lumps::{LumpCollection, MapLump};
+use crate::lumps::LumpCollection;
 use crate::tokenizer::tokenize_lumps;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -11,10 +10,8 @@ type Result<T> = std::result::Result<T, Error>;
 
 pub struct WadIndex {
     name: String,
-    header: Header,
     file_type: MagicString,
     size: usize,
-    data: Arc<[u8]>,
     lumps: LumpCollection,
 }
 
@@ -32,10 +29,8 @@ impl WadIndex {
         let lumps = parse_tokens(tokens)?;
         let wad_reader = WadIndex {
             name,
-            header,
             file_type,
             size,
-            data,
             lumps,
         };
 
