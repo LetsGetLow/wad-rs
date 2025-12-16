@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.8.1"
 
 [[bin]]
 name = "profile"
@@ -14,7 +14,7 @@ path = "src/bin/profile.rs"
 
 [profile.release]
 opt-level = 3
-lto = false
+lto = true
 codegen-units = 1
 
 [[bench]]
