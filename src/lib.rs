@@ -1,8 +1,10 @@
 mod header;
 mod directory;
 mod wad;
-mod lump;
-mod map;
+mod lumps;
+mod tokenizer;
+mod index;
 
-pub use directory::Directory;
-pub use wad::WadReader;
+pub use directory::DirectoryParser;
+pub use wad::WadIndex;
+pub use lumps::LumpCollection;

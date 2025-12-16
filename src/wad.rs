@@ -1,22 +1,24 @@
-use crate::directory::Directory;
-use crate::header::Header;
-use crate::map::MapIndex;
+use crate::directory::DirectoryParser;
+use crate::header::{Header, MagicString};
+use crate::index::parse_tokens;
+use crate::lumps::{LumpCollection, MapLump};
+use crate::tokenizer::tokenize_lumps;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, Error>;
 
-pub struct WadReader {
+pub struct WadIndex {
     name: String,
+    header: Header,
+    file_type: MagicString,
     size: usize,
-    header: Arc<Header>,
-    directory: Arc<Directory>,
     data: Arc<[u8]>,
-    pub maps: HashMap<String, MapIndex>,
+    lumps: LumpCollection,
 }
 
-impl WadReader {
+impl WadIndex {
     pub fn from_bytes(name: String, data: Arc<[u8]>) -> Result<Self> {
         let size = data.len();
         if size < 12 {
@@ -24,74 +26,42 @@ impl WadReader {
         }
         let header_bytes: &[u8; 12] = data[0..12].try_into()?;
         let header = Header::try_from(header_bytes).map_err(|e| e.to_string())?;
-        let directory = Arc::new(Directory::new(Arc::clone(&data), header)?);
-        let header = Arc::new(header);
-        Ok(WadReader {
+        let file_type = header.identification;
+        let directory = DirectoryParser::new(Arc::clone(&data), header)?;
+        let tokens = tokenize_lumps(directory.iter(), Arc::clone(&data));
+        let lumps = parse_tokens(tokens)?;
+        let wad_reader = WadIndex {
             name,
-            size,
             header,
-            directory,
+            file_type,
+            size,
             data,
-            maps: HashMap::new(),
-        })
-    }
-
-    pub fn index_lumps(&mut self) {
-        let is_marker = |start: usize, end: usize| start == end;
-        let is_map = |name: &String| {
-            if name.len() < 4 {
-                return false;
-            }
-            if !name.chars().all(|c| c.is_ascii_alphanumeric()) {
-                return false;
-            }
-
-            if name.starts_with("MAP") {
-                return true;
-            }
-
-            let n = name.as_bytes();
-            n[0] == b'E' && n[2] == b'M'
+            lumps,
         };
 
-        let mut maps = HashMap::new();
-        let mut last_map_key: String = "".to_string();
-        for dir_ref in self.directory.iter() {
-            let name = dir_ref.name(Arc::clone(&self.data));
-            if is_marker(dir_ref.start(), dir_ref.end()) && is_map(&name) {
-                last_map_key = name.clone();
-                maps.insert(name, MapIndex::new());
-                continue;
-            }
-
-            if MapIndex::is_map_lump(&name) {
-                if let Some(map_index) = maps.get_mut(&last_map_key) {
-                    map_index.add_lump(&name, dir_ref);
-                    continue;
-                }
-            }
-        }
-
-        self.maps = maps;
+        Ok(wad_reader)
+    }
+    pub fn get_lumps(&self) -> &LumpCollection {
+        &self.lumps
     }
 
-    pub fn get_directory(&self) -> Arc<Directory> {
-        Arc::clone(&self.directory)
+    pub fn get_maps(&self) -> Option<&LumpCollection> {
+        self.lumps.get_collection("MAPS")
     }
 
     pub fn get_name(&self) -> &String {
         &self.name
     }
 
-    pub fn get_header(&self) -> &Header {
-        &self.header
+    pub fn get_file_type(&self) -> MagicString {
+        self.file_type
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::header::HeaderId;
+    use crate::header::MagicString;
     use std::sync::Arc;
 
     #[test]
@@ -100,34 +70,35 @@ mod tests {
         let wad_bytes: Arc<[u8]> = Arc::from(wad_data);
 
         let wad =
-            WadReader::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
+            WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
 
         assert_eq!(wad.name, "freedoom1.wad");
         assert_eq!(wad.size, wad_bytes.len());
-        assert_eq!(wad.header.identification, HeaderId::IWAD);
-        assert_eq!(
-            wad.get_directory().iter().count(),
-            wad.header.num_lumps as usize
-        );
+        assert_eq!(wad.file_type, MagicString::IWAD);
     }
 
     #[test]
     fn wad_can_index_lumps_from_doom1() {
         let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
         let wad_bytes: Arc<[u8]> = Arc::from(wad_data);
-        let mut wad =
-            WadReader::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
-        wad.index_lumps();
-        assert!(!wad.maps.is_empty());
+        let wad =
+            WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
+
+        assert!(!wad.get_lumps().is_empty());
+
+        let num_levels = wad.get_maps().unwrap().collection_iter().len();
+        assert_eq!(num_levels, 36);
     }
 
     #[test]
     fn wad_can_index_lumps_from_doom2() {
         let wad_data = include_bytes!("../assets/wad/freedoom2.wad").to_vec();
         let wad_bytes: Arc<[u8]> = Arc::from(wad_data);
-        let mut wad =
-            WadReader::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
-        wad.index_lumps();
-        assert!(!wad.maps.is_empty());
+        let wad =
+            WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
+
+        assert!(!wad.get_lumps().is_empty());
+        let num_levels = wad.get_maps().unwrap().collection_iter().len();
+        assert_eq!(num_levels, 32);
     }
 }

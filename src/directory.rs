@@ -43,17 +43,43 @@ impl DirectoryRef {
     pub fn end(&self) -> usize {
         self.end
     }
+
+    pub fn is_marker(&self) -> bool {
+        self.start == self.end
+    }
+
+    pub fn is_map_marker(&self, data: Arc<[u8]>) -> bool {
+        if !self.is_marker() {
+            return false;
+        }
+
+        let name = self.name(data);
+        if name.len() < 4 {
+            return false;
+        }
+
+        if name.starts_with("MAP") {
+            return true;
+        }
+
+        let n = name.as_bytes();
+        n[0] == b'E' && n[2] == b'M'
+    }
+
+    pub fn content(&self, data: Arc<[u8]>) -> Arc<[u8]> {
+        Arc::from(&data[self.start..self.end])
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Directory {
+pub struct DirectoryParser {
     start: usize,
     end: usize,
     current_index: usize,
     data: Arc<[u8]>,
 }
 
-impl Directory {
+impl DirectoryParser {
     pub fn new(data: Arc<[u8]>, header: Header) -> Result<Self> {
         let start = header.info_table_offset as usize;
         let end = start + (header.num_lumps as usize * DIRECTORY_ENTRY_SIZE);
@@ -61,7 +87,7 @@ impl Directory {
             return Err("Data too small to contain directory entries".into());
         }
 
-        Ok(Directory {
+        Ok(DirectoryParser {
             data,
             start,
             end,
@@ -78,7 +104,7 @@ impl Directory {
     }
 }
 
-impl IntoIterator for Directory {
+impl IntoIterator for DirectoryParser {
     type Item = DirectoryRef;
     type IntoIter = DirectoryIterator;
     fn into_iter(self) -> Self::IntoIter {
@@ -86,10 +112,21 @@ impl IntoIterator for Directory {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct DirectoryIterator {
     current: usize,
     end: usize,
     data: Arc<[u8]>,
+}
+
+impl DirectoryIterator {
+    pub(crate) fn seed_test_data(data: Arc<[u8]>, start: usize, end: usize) -> Self {
+        Self {
+            current: start,
+            end,
+            data,
+        }
+    }
 }
 
 impl Iterator for DirectoryIterator {
@@ -150,24 +187,66 @@ mod tests {
     }
 
     #[test]
-    fn directory_can_iterate_entries() {
+    fn directory_ref_can_identify_marker() {
+        let marker_ref = DirectoryRef::new(0x1000, 0x1000, 0);
+        let non_marker_ref = DirectoryRef::new(0x1000, 0x2000, 0);
+        assert!(marker_ref.is_marker());
+        assert!(!non_marker_ref.is_marker());
+    }
+
+    #[test]
+    fn directory_ref_can_extract_content_from_data() {
+        let data: Arc<[u8]> = Arc::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        let dir_ref = DirectoryRef::new(2, 7, 0);
+        let content = dir_ref.content(Arc::clone(&data));
+        assert_eq!(&*content, &[2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn directory_parser_can_create_from_data_and_header() {
+        let data: Arc<[u8]> = Arc::from([0; 64]);
+        let header = Header {
+            identification: crate::header::MagicString::IWAD,
+            num_lumps: 2,
+            info_table_offset: 16,
+        };
+        let parser = DirectoryParser::new(Arc::clone(&data), header).unwrap();
+        assert_eq!(parser.start, 16);
+        assert_eq!(parser.end, 16 + (2 * DIRECTORY_ENTRY_SIZE));
+        assert_eq!(parser.data, data);
+    }
+
+    #[test]
+    fn directory_parser_fails_with_insufficient_data() {
+        let data: Arc<[u8]> = Arc::from([0; 16]);
+        let header = Header {
+            identification: crate::header::MagicString::IWAD,
+            num_lumps: 2,
+            info_table_offset: 16,
+        };
+        let result = DirectoryParser::new(Arc::clone(&data), header);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn directory_parser_can_iterate_entries() {
         let mut data = Vec::with_capacity(DIRECTORY_ENTRY_SIZE * 2);
         // First ref
-        data.extend(&0x00000034u32.to_le_bytes()); // pos
-        data.extend(&0x00000078u32.to_le_bytes()); // size
+        data.extend(&0x00000034i32.to_le_bytes()); // pos
+        data.extend(&0x00000078i32.to_le_bytes()); // size
         data.extend(b"ENTRYONE"); // name
         // Second ref
-        data.extend(&0x0000009Au32.to_le_bytes()); // pos
-        data.extend(&0x000000BCu32.to_le_bytes()); // size
+        data.extend(&0x0000009Ai32.to_le_bytes()); // pos
+        data.extend(&0x000000BCi32.to_le_bytes()); // size
         data.extend(b"ENTRYTWO"); // name
 
         let arc_data: Arc<[u8]> = Arc::from(data);
         let header = Header {
-            identification: crate::header::HeaderId::IWAD,
+            identification: crate::header::MagicString::IWAD,
             num_lumps: 2,
             info_table_offset: 0,
         };
-        let mut directory = Directory::new(Arc::clone(&arc_data), header).unwrap().iter();
+        let mut directory = DirectoryParser::new(Arc::clone(&arc_data), header).unwrap().iter();
         let first_ref = directory.next().unwrap();
         assert_eq!(first_ref.start(), 0x34);
         assert_eq!(first_ref.end(), 0x34 + 0x78);
@@ -177,5 +256,28 @@ mod tests {
         assert_eq!(second_ref.end(), 0x9A + 0xBC);
         assert_eq!(second_ref.name(arc_data), "ENTRYTWO");
         assert!(directory.next().is_none());
+    }
+
+    #[test]
+    fn directory_parser_implements_into_iterator() {
+        let mut data = Vec::with_capacity(DIRECTORY_ENTRY_SIZE);
+        // Single ref
+        data.extend(&0x00000010u32.to_le_bytes()); // pos
+        data.extend(&0x00000020u32.to_le_bytes()); // size
+        data.extend(b"SINGLEEN"); // name
+
+        let arc_data: Arc<[u8]> = Arc::from(data);
+        let header = Header {
+            identification: crate::header::MagicString::IWAD,
+            num_lumps: 1,
+            info_table_offset: 0,
+        };
+        let directory_parser = DirectoryParser::new(Arc::clone(&arc_data), header).unwrap();
+        let mut iter = directory_parser.into_iter();
+        let dir_ref = iter.next().unwrap();
+        assert_eq!(dir_ref.start(), 0x10);
+        assert_eq!(dir_ref.end(), 0x10 + 0x20);
+        assert_eq!(dir_ref.name(Arc::clone(&arc_data)), "SINGLEEN");
+        assert!(iter.next().is_none());
     }
 }
