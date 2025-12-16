@@ -136,6 +136,28 @@ mod tests {
     }
 
     #[test]
+    fn wad_get_lump_by_namespaces_gives_none_on_invalid_lump_name() {
+        let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
+        let wad_bytes: Arc<[u8]> = Arc::from(wad_data);
+        let wad =
+            WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
+
+        let lump = wad.get_lump_by_namespaces(vec!["MAPS".to_string(), "E1M1".to_string()], "NON_EXISTENT_LUMP");
+        assert!(lump.is_none());
+    }
+
+    #[test]
+    fn wad_get_lump_by_namespaces_gives_none_on_invalid_namespace() {
+        let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
+        let wad_bytes: Arc<[u8]> = Arc::from(wad_data);
+        let wad =
+            WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
+
+        let lump = wad.get_lump_by_namespaces(vec!["MAPS".to_string(), "NON_EXISTENT_NAMESPACE".to_string()], "THINGS");
+        assert!(lump.is_none());
+    }
+
+    #[test]
     fn wad_get_map_by_name() {
         let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
         let wad_bytes: Arc<[u8]> = Arc::from(wad_data);
@@ -143,5 +165,15 @@ mod tests {
             WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
         let lump = wad.get_map_by_name("E1M1");
         assert!(lump.is_some());
+    }
+
+    #[test]
+    fn wad_get_map_by_name_gives_none_on_invalid_name() {
+        let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
+        let wad_bytes: Arc<[u8]> = Arc::from(wad_data);
+        let wad =
+            WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
+        let lump = wad.get_map_by_name("NON_EXISTENT_MAP");
+        assert!(lump.is_none());
     }
 }
