@@ -1,4 +1,4 @@
-use crate::directory::DirectoryParser;
+use crate::directory::{DirectoryParser, DirectoryRef};
 use crate::header::{Header, MagicString};
 use crate::index::parse_tokens;
 use crate::lumps::LumpCollection;
@@ -42,6 +42,32 @@ impl WadIndex {
 
     pub fn get_maps(&self) -> Option<&LumpCollection> {
         self.lumps.get_collection("MAPS")
+    }
+
+    pub fn get_map_by_name(&self, name: &str) -> Option<&LumpCollection> {
+        if let Some(collection) = self.get_maps() {
+            if let Some(lump) = collection.get_collection(name) {
+                return Some(lump);
+            }
+        }
+        None
+    }
+
+    pub fn get_lump_by_namespaces(&self, namespaces: Vec<String>, name: &str) -> Option<&DirectoryRef> {
+        let mut curr_collection = &self.lumps;
+        for namespace in namespaces {
+            if let Some(collection) = curr_collection.get_collection(&namespace) {
+                curr_collection = collection;
+            } else {
+                return None;
+            }
+        }
+
+        if let Some(lump) = curr_collection.get_lump(name) {
+            Some(lump)
+        } else {
+            None
+        }
     }
 
     pub fn get_name(&self) -> &String {
@@ -95,5 +121,27 @@ mod tests {
         assert!(!wad.get_lumps().is_empty());
         let num_levels = wad.get_maps().unwrap().collection_iter().len();
         assert_eq!(num_levels, 32);
+    }
+
+
+    #[test]
+    fn wad_get_lump_by_namespaces() {
+        let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
+        let wad_bytes: Arc<[u8]> = Arc::from(wad_data);
+        let wad =
+            WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
+
+        let lump = wad.get_lump_by_namespaces(vec!["MAPS".to_string(), "E1M1".to_string()], "THINGS");
+        assert!(lump.is_some());
+    }
+
+    #[test]
+    fn wad_get_map_by_name() {
+        let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
+        let wad_bytes: Arc<[u8]> = Arc::from(wad_data);
+        let wad =
+            WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
+        let lump = wad.get_map_by_name("E1M1");
+        assert!(lump.is_some());
     }
 }
