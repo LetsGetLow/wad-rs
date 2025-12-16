@@ -63,7 +63,7 @@ impl DirectoryRef {
         self.start == self.end
     }
 
-    pub fn content(&self, data: Arc<[u8]>) -> Arc<[u8]> {
+    pub fn extract_content(&self, data: Arc<[u8]>) -> Arc<[u8]> {
         Arc::from(&data[self.start..self.end])
     }
 }
@@ -195,7 +195,7 @@ mod tests {
     fn directory_ref_can_extract_content_from_data() {
         let data: Arc<[u8]> = Arc::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
         let dir_ref = DirectoryRef::new(2, 7, 0);
-        let content = dir_ref.content(Arc::clone(&data));
+        let content = dir_ref.extract_content(Arc::clone(&data));
         assert_eq!(&*content, &[2, 3, 4, 5, 6]);
     }
 
