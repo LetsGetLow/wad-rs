@@ -14,7 +14,7 @@ fn print_lump_names(lumps: &LumpCollection, level: usize) {
         println!("{}{}", "  ".repeat(level), name);
         print_lump_names(collection, level + 1);
     }
-    for (name, lump) in lumps.iter() {
+    for (name, _) in lumps.iter() {
         println!("{}{}", "  ".repeat(level), name);
     }
 }

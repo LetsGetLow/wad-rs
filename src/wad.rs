@@ -11,7 +11,6 @@ type Result<T> = std::result::Result<T, Error>;
 pub struct WadIndex {
     name: String,
     file_type: MagicString,
-    size: usize,
     lumps: LumpCollection,
 }
 
@@ -30,7 +29,6 @@ impl WadIndex {
         let wad_reader = WadIndex {
             name,
             file_type,
-            size,
             lumps,
         };
 
@@ -94,7 +92,6 @@ mod tests {
             WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
 
         assert_eq!(wad.name, "freedoom1.wad");
-        assert_eq!(wad.size, wad_bytes.len());
         assert_eq!(wad.file_type, MagicString::IWAD);
     }
 
