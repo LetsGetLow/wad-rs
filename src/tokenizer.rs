@@ -42,10 +42,11 @@ pub fn tokenize_lumps(directory_iterator: DirectoryIterator, data: Arc<[u8]>) ->
 }
 
 fn is_map_marker(name: &str) -> bool {
-    let doom2_map_pattern = regex::Regex::new(r"^MAP\d{2}$").unwrap();
-    let doom_map_pattern = regex::Regex::new(r"^E\dM\d$").unwrap();
-
-    doom2_map_pattern.is_match(name) || doom_map_pattern.is_match(name)
+    match name.as_bytes() {
+        [b'M', b'A', b'P', d1, d2] => d1.is_ascii_digit() && d2.is_ascii_digit(),
+        [b'E', d1, b'M', d2] => d1.is_ascii_digit() && d2.is_ascii_digit(),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
