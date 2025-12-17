@@ -27,7 +27,7 @@ impl WadIndex {
         let header = Header::try_from(header_bytes).map_err(|e| e.to_string())?;
         let file_type = header.identification;
         let directory = DirectoryParser::new(Arc::clone(&data), header)?;
-        let tokens = tokenize_lumps(directory.iter(), Arc::clone(&data));
+        let tokens = tokenize_lumps(directory.iter(), &data);
         let lump_index = index_tokens(&tokens)?;
         let wad_reader = WadIndex {
             name,

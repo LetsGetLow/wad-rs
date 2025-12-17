@@ -138,11 +138,11 @@ mod tests {
         let first_ref = directory.next().unwrap();
         assert_eq!(first_ref.start(), 0x34);
         assert_eq!(first_ref.end(), 0x34 + 0x78);
-        assert_eq!(first_ref.name(Arc::clone(&arc_data)), "ENTRYONE");
+        assert_eq!(first_ref.name(&arc_data), "ENTRYONE");
         let second_ref = directory.next().unwrap();
         assert_eq!(second_ref.start(), 0x9A);
         assert_eq!(second_ref.end(), 0x9A + 0xBC);
-        assert_eq!(second_ref.name(arc_data), "ENTRYTWO");
+        assert_eq!(second_ref.name(&arc_data), "ENTRYTWO");
         assert!(directory.next().is_none());
     }
 
@@ -165,7 +165,7 @@ mod tests {
         let dir_ref = iter.next().unwrap();
         assert_eq!(dir_ref.start(), 0x10);
         assert_eq!(dir_ref.end(), 0x10 + 0x20);
-        assert_eq!(dir_ref.name(Arc::clone(&arc_data)), "SINGLEEN");
+        assert_eq!(dir_ref.name(&arc_data), "SINGLEEN");
         assert!(iter.next().is_none());
     }
 }

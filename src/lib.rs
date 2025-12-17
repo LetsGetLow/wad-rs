@@ -1,9 +1,9 @@
-mod header;
-mod directory;
-mod wad;
-mod lumps;
-mod tokenizer;
-mod index;
+pub mod header;
+pub mod directory;
+pub mod wad;
+pub mod lumps;
+pub mod tokenizer;
+pub mod index;
 
 pub use directory::DirectoryParser;
 pub use index::index_tokens;

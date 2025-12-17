@@ -1,3 +1,4 @@
+use std::slice::from_raw_parts;
 use std::sync::Arc;
 
 const LUMP_NAME_LENGTH: usize = 8;
@@ -19,6 +20,12 @@ pub fn is_map_lump(name: &String) -> bool {
     )
 }
 
+/// A refence to a lump data and it's name
+///
+/// # Fields
+/// - `start`: The start offset of the lump data in the WAD file
+/// - `end`: The end offset of the lump data in the WAD file
+/// - `name_offset`: The offset of the lump name in the WAD file
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LumpRef {
     start: usize,
@@ -27,6 +34,7 @@ pub struct LumpRef {
 }
 
 impl LumpRef {
+    /// Creates a new LumpRef
     pub fn new(start: usize, end: usize, name_offset: usize) -> Self {
         Self {
             start,
@@ -35,17 +43,25 @@ impl LumpRef {
         }
     }
 
+
     pub fn name_offset(&self) -> usize {
         self.name_offset
     }
 
-    pub fn name(&self, data: Arc<[u8]>) -> String {
-        let slice = &data[self.name_offset..self.name_offset + LUMP_NAME_LENGTH];
-        let end = slice.iter().position(|&b| b == 0).unwrap_or(LUMP_NAME_LENGTH);
-        let name_bytes = &slice[..end];
-        String::from_utf8_lossy(name_bytes).to_ascii_uppercase().to_string()
+    pub fn name(&self, data: &[u8]) -> String {
+        unsafe {
+            let ptr = data.as_ptr().add(self.name_offset);
+            for i in 0..LUMP_NAME_LENGTH {
+                if *ptr.add(i) == 0 {
+                    let b =  from_raw_parts(ptr, i);
+                    return String::from_utf8_lossy(b).to_string();
+                }
+            }
+            String::from_utf8_lossy(from_raw_parts(ptr, LUMP_NAME_LENGTH)).to_string()
+        }
     }
 
+    /// Returns the (start, end) range of the lump data
     pub fn range(&self) -> (usize, usize) {
         (self.start, self.end)
     }
@@ -62,8 +78,13 @@ impl LumpRef {
         self.start == self.end
     }
 
-    pub fn extract_content(&self, data: Arc<[u8]>) -> Arc<[u8]> {
-        Arc::from(&data[self.start..self.end])
+    // Extracts the lump content from the provided data
+    pub fn extract_content<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+        let len = self.end - self.start;
+        unsafe {
+            let ptr = data.as_ptr().add(self.start);
+            from_raw_parts(ptr, len)
+        }
     }
 }
 
@@ -101,7 +122,7 @@ mod tests {
     fn directory_ref_can_determine_name_by_data() {
         let data: Arc<[u8]> = Arc::from([b'T', b'E', b'S', b'T', 0, 0, 0, 0]);
         let dir_ref = LumpRef::new(0, 0, 0);
-        assert_eq!(dir_ref.name(data), "TEST".to_ascii_uppercase());
+        assert_eq!(dir_ref.name(&data), "TEST".to_ascii_uppercase());
     }
 
     #[test]
@@ -140,7 +161,7 @@ mod tests {
     fn directory_ref_can_extract_content_from_data() {
         let data: Arc<[u8]> = Arc::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
         let dir_ref = LumpRef::new(2, 7, 0);
-        let content = dir_ref.extract_content(Arc::clone(&data));
+        let content = dir_ref.extract_content(&data);
         assert_eq!(&*content, &[2, 3, 4, 5, 6]);
     }
 }

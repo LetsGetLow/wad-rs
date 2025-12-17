@@ -2,8 +2,7 @@ use crate::directory::DirectoryIterator;
 use crate::lumps::LumpRef;
 use std::sync::Arc;
 
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum LumpToken {
     MarkerStart(String),
     MarkerEnd(String),
@@ -20,13 +19,13 @@ impl LumpToken {
         name.ends_with("_END")
     }
 }
-pub fn tokenize_lumps(directory_iterator: DirectoryIterator, data: Arc<[u8]>) -> Vec<LumpToken> {
+pub fn tokenize_lumps(directory_iterator: DirectoryIterator, data: &[u8]) -> Vec<LumpToken> {
     let mut tokens = Vec::new();
 
     for dir_ref in directory_iterator {
-        let name = dir_ref.name(Arc::clone(&data));
+        let name = dir_ref.name(&data);
         if dir_ref.is_marker() {
-            let name = dir_ref.name(Arc::clone(&data));
+            let name = dir_ref.name(&data);
             if is_map_marker(&name) {
                 tokens.push(LumpToken::MapMarker(name));
             } else if LumpToken::is_start_marker(&name) {
@@ -63,7 +62,7 @@ mod tests {
         ]);
 
         let dir_iterator = DirectoryIterator::seed_test_data(Arc::clone(&data), 0, 32);
-        let tokens = tokenize_lumps(dir_iterator, Arc::clone(&data));
+        let tokens = tokenize_lumps(dir_iterator, &data);
 
         assert_eq!(tokens.len(), 2);
         match &tokens[0] {
@@ -86,7 +85,7 @@ mod tests {
         ]);
 
         let dir_iterator = DirectoryIterator::seed_test_data(Arc::clone(&data), 0, 32);
-        let tokens = tokenize_lumps(dir_iterator, Arc::clone(&data));
+        let tokens = tokenize_lumps(dir_iterator, &data);
 
         assert_eq!(tokens.len(), 2);
         match &tokens[0] {
@@ -116,7 +115,7 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0, b'E', b'1', b'M', b'2', 0, 0, 0, 0,
             ]);
             let dir_iterator = DirectoryIterator::seed_test_data(Arc::clone(&data), 0, 32);
-            let tokens = tokenize_lumps(dir_iterator, Arc::clone(&data));
+            let tokens = tokenize_lumps(dir_iterator, &data);
 
             assert_eq!(tokens.len(), 2);
             match &tokens[0] {
