@@ -1,5 +1,5 @@
 use crate::directory::DirectoryIterator;
-use crate::lumps::LumpRef;
+use crate::lump::LumpRef;
 
 #[derive(Debug, Clone)]
 pub enum LumpToken {

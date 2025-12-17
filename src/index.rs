@@ -1,5 +1,5 @@
-use crate::lumps::is_map_lump;
-use crate::lumps::LumpRef;
+use crate::lump::is_map_lump;
+use crate::lump::LumpRef;
 use crate::tokenizer::LumpToken;
 use std::collections::HashMap;
 use std::iter::Peekable;
@@ -92,7 +92,7 @@ fn index_namespace(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lumps::LumpRef;
+    use crate::lump::LumpRef;
     use crate::tokenizer::LumpToken;
 
     #[test]

@@ -1,11 +1,11 @@
 use crate::directory::DirectoryParser;
 use crate::header::{Header, MagicString};
-use crate::lumps::LumpRef;
-use crate::tokenizer::tokenize_lumps;
-use crate::{index_tokens, LumpToken};
+use crate::lump::LumpRef;
+use crate::tokenizer::{tokenize_lumps, LumpToken};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::rc::Rc;
+use crate::index::index_tokens;
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;

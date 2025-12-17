@@ -1,5 +1,5 @@
 use crate::header::Header;
-use crate::lumps::LumpRef;
+use crate::lump::LumpRef;
 use std::rc::Rc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;

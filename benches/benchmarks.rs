@@ -1,7 +1,9 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use std::rc::Rc;
-use wad_rs::LumpRef;
-use wad_rs::{index_tokens, LumpToken, WadIndex};
+use wad_rs::index::index_tokens;
+use wad_rs::lump::LumpRef;
+use wad_rs::tokenizer::LumpToken;
+use wad_rs::WadIndex;
 
 const WAD_DATA: &[u8] = include_bytes!("../assets/wad/freedoom1.wad").as_slice();
 
