@@ -141,6 +141,16 @@ mod tests {
     }
 
     #[test]
+    fn wad_index_get_lumps_without_namespaces() {
+        let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
+        let wad_bytes: Rc<[u8]> = Rc::from(wad_data);
+        let wad = WadIndex::from_bytes("freedoom1.wad".to_string(), Rc::clone(&wad_bytes)).unwrap();
+
+        let lump = wad.get_lump(vec![], "DSPISTOL");
+        assert!(lump.is_some());
+    }
+
+    #[test]
     fn wad_index_can_provide_a_map_iterator() {
         let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
         let wad_bytes: Rc<[u8]> = Rc::from(wad_data);
