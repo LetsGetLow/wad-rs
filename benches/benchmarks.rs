@@ -1,12 +1,12 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use std::sync::Arc;
-use wad_rs::{index_tokens, LumpToken, WadIndex};
+use std::rc::Rc;
 use wad_rs::LumpRef;
+use wad_rs::{index_tokens, LumpToken, WadIndex};
 
 const WAD_DATA: &[u8] = include_bytes!("../assets/wad/freedoom1.wad").as_slice();
 
 fn bench_wad_from_bytes(b: &mut Criterion) {
-    let wad_data: Arc<[u8]> = Arc::from(WAD_DATA);
+    let wad_data: Rc<[u8]>= Rc::from(WAD_DATA);
 
     let mut group = b.benchmark_group("Wad from_bytes");
     group.throughput(Throughput::Bytes(wad_data.len() as u64));
@@ -14,7 +14,7 @@ fn bench_wad_from_bytes(b: &mut Criterion) {
 
     group.bench_function("index_lumps", |b| {
         b.iter(|| {
-            WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_data)).unwrap();
+            WadIndex::from_bytes("freedoom1.wad".to_string(), Rc::clone(&wad_data)).unwrap();
         })
     });
     group.finish();

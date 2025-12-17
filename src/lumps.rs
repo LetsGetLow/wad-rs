@@ -1,5 +1,4 @@
 use std::slice::from_raw_parts;
-use std::sync::Arc;
 
 const LUMP_NAME_LENGTH: usize = 8;
 
@@ -21,6 +20,12 @@ pub fn is_map_lump(name: &String) -> bool {
 }
 
 /// A refence to a lump data and it's name
+/// this struct does not own any data, it just points to offsets in the WAD file
+/// it should be used in conjunction with the WAD file data to extract the lump name and data
+///
+/// # Safety
+/// This struct uses unsafe code to extract the lump name and data from the WAD file data
+/// the caller must ensure that the provided data slice is valid and contains the lump data
 ///
 /// # Fields
 /// - `start`: The start offset of the lump data in the WAD file
@@ -43,17 +48,16 @@ impl LumpRef {
         }
     }
 
-
     pub fn name_offset(&self) -> usize {
         self.name_offset
     }
 
-    pub fn name(&self, data: &[u8]) -> String {
+    pub unsafe fn name(&self, data: &[u8]) -> String {
         unsafe {
             let ptr = data.as_ptr().add(self.name_offset);
             for i in 0..LUMP_NAME_LENGTH {
                 if *ptr.add(i) == 0 {
-                    let b =  from_raw_parts(ptr, i);
+                    let b = from_raw_parts(ptr, i);
                     return String::from_utf8_lossy(b).to_string();
                 }
             }
@@ -90,22 +94,14 @@ impl LumpRef {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
     use super::*;
 
     #[test]
     fn is_map_lump_identifies_map_lumps() {
         let map_lumps = vec![
-            "THINGS",
-            "LINEDEFS",
-            "SIDEDEFS",
-            "VERTEXES",
-            "SECTORS",
-            "SSECTORS",
-            "SEGS",
-            "NODES",
-            "REJECT",
-            "BLOCKMAP",
-            "BEHAVIOR",
+            "THINGS", "LINEDEFS", "SIDEDEFS", "VERTEXES", "SECTORS", "SSECTORS", "SEGS", "NODES",
+            "REJECT", "BLOCKMAP", "BEHAVIOR",
         ];
 
         for lump in map_lumps {
@@ -120,9 +116,9 @@ mod tests {
 
     #[test]
     fn directory_ref_can_determine_name_by_data() {
-        let data: Arc<[u8]> = Arc::from([b'T', b'E', b'S', b'T', 0, 0, 0, 0]);
+        let data = Rc::from([b'T', b'E', b'S', b'T', 0, 0, 0, 0]);
         let dir_ref = LumpRef::new(0, 0, 0);
-        assert_eq!(dir_ref.name(&data), "TEST".to_ascii_uppercase());
+        unsafe { assert_eq!(dir_ref.name(&data), "TEST".to_ascii_uppercase()); }
     }
 
     #[test]
@@ -159,7 +155,7 @@ mod tests {
 
     #[test]
     fn directory_ref_can_extract_content_from_data() {
-        let data: Arc<[u8]> = Arc::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        let data = Rc::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
         let dir_ref = LumpRef::new(2, 7, 0);
         let content = dir_ref.extract_content(&data);
         assert_eq!(&*content, &[2, 3, 4, 5, 6]);

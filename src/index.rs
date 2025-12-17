@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::iter::Peekable;
 use std::slice::Iter;
 
-type Error = Box<dyn std::error::Error + Send + Sync>;
+type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
 pub fn index_tokens(tokens: &Vec<LumpToken>) -> Result<HashMap<String, LumpRef>> {
@@ -65,7 +65,10 @@ fn index_namespace(
             }
             LumpToken::MarkerStart(start_marker) => {
                 let inner_namespace = start_marker.replace("_START", "");
-                let full_namespace = format!("{}/{}", namespace, inner_namespace);
+                let mut full_namespace = String::with_capacity(namespace.len() + 1 + inner_namespace.len());
+                full_namespace.push_str(namespace);
+                full_namespace.push('/');
+                full_namespace.push_str(&inner_namespace);
                 index_namespace(lumps, &full_namespace, tokens)?;
             }
             LumpToken::MarkerEnd(end_marker) => {

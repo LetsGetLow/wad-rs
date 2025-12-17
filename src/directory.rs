@@ -1,8 +1,8 @@
 use crate::header::Header;
 use crate::lumps::LumpRef;
-use std::sync::Arc;
+use std::rc::Rc;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const DIRECTORY_ENTRY_SIZE: usize = 16;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,11 +10,11 @@ pub struct DirectoryParser {
     start: usize,
     end: usize,
     current_index: usize,
-    data: Arc<[u8]>,
+    data: Rc<[u8]>,
 }
 
 impl DirectoryParser {
-    pub fn new(data: Arc<[u8]>, header: Header) -> Result<Self> {
+    pub fn new(data: Rc<[u8]>, header: Header) -> Result<Self> {
         let start = header.info_table_offset as usize;
         let end = start + (header.num_lumps as usize * DIRECTORY_ENTRY_SIZE);
         if end > data.len() {
@@ -33,7 +33,7 @@ impl DirectoryParser {
         DirectoryIterator {
             current: self.start,
             end: self.end,
-            data: Arc::clone(&self.data),
+            data: Rc::clone(&self.data),
         }
     }
 }
@@ -50,11 +50,12 @@ impl IntoIterator for DirectoryParser {
 pub struct DirectoryIterator {
     current: usize,
     end: usize,
-    data: Arc<[u8]>,
+    data: Rc<[u8]>,
 }
 
 impl DirectoryIterator {
-    pub(crate) fn seed_test_data(data: Arc<[u8]>, start: usize, end: usize) -> Self {
+    /// Seeds test data for the iterator not for production use
+    pub(crate) fn seed_test_data(data: Rc<[u8]>, start: usize, end: usize) -> Self {
         Self {
             current: start,
             end,
@@ -92,13 +93,13 @@ mod tests {
 
     #[test]
     fn directory_parser_can_create_from_data_and_header() {
-        let data: Arc<[u8]> = Arc::from([0; 64]);
+        let data = Rc::from([0; 64]);
         let header = Header {
             identification: crate::header::MagicString::IWAD,
             num_lumps: 2,
             info_table_offset: 16,
         };
-        let parser = DirectoryParser::new(Arc::clone(&data), header).unwrap();
+        let parser = DirectoryParser::new(Rc::clone(&data), header).unwrap();
         assert_eq!(parser.start, 16);
         assert_eq!(parser.end, 16 + (2 * DIRECTORY_ENTRY_SIZE));
         assert_eq!(parser.data, data);
@@ -106,13 +107,13 @@ mod tests {
 
     #[test]
     fn directory_parser_fails_with_insufficient_data() {
-        let data: Arc<[u8]> = Arc::from([0; 16]);
+        let data  = Rc::from([0; 16]);
         let header = Header {
             identification: crate::header::MagicString::IWAD,
             num_lumps: 2,
             info_table_offset: 16,
         };
-        let result = DirectoryParser::new(Arc::clone(&data), header);
+        let result = DirectoryParser::new(Rc::clone(&data), header);
         assert!(result.is_err());
     }
 
@@ -128,21 +129,21 @@ mod tests {
         data.extend(&0x000000BCi32.to_le_bytes()); // size
         data.extend(b"ENTRYTWO"); // name
 
-        let arc_data: Arc<[u8]> = Arc::from(data);
+        let data = Rc::from(data);
         let header = Header {
             identification: crate::header::MagicString::IWAD,
             num_lumps: 2,
             info_table_offset: 0,
         };
-        let mut directory = DirectoryParser::new(Arc::clone(&arc_data), header).unwrap().iter();
+        let mut directory = DirectoryParser::new(Rc::clone(&data), header).unwrap().iter();
         let first_ref = directory.next().unwrap();
         assert_eq!(first_ref.start(), 0x34);
         assert_eq!(first_ref.end(), 0x34 + 0x78);
-        assert_eq!(first_ref.name(&arc_data), "ENTRYONE");
+        assert_eq!(unsafe {first_ref.name(&data)}, "ENTRYONE");
         let second_ref = directory.next().unwrap();
         assert_eq!(second_ref.start(), 0x9A);
         assert_eq!(second_ref.end(), 0x9A + 0xBC);
-        assert_eq!(second_ref.name(&arc_data), "ENTRYTWO");
+        unsafe { assert_eq!(second_ref.name(&data), "ENTRYTWO"); }
         assert!(directory.next().is_none());
     }
 
@@ -154,18 +155,18 @@ mod tests {
         data.extend(&0x00000020u32.to_le_bytes()); // size
         data.extend(b"SINGLEEN"); // name
 
-        let arc_data: Arc<[u8]> = Arc::from(data);
+        let data: Rc<[u8]> = Rc::from(data);
         let header = Header {
             identification: crate::header::MagicString::IWAD,
             num_lumps: 1,
             info_table_offset: 0,
         };
-        let directory_parser = DirectoryParser::new(Arc::clone(&arc_data), header).unwrap();
+        let directory_parser = DirectoryParser::new(Rc::clone(&data), header).unwrap();
         let mut iter = directory_parser.into_iter();
         let dir_ref = iter.next().unwrap();
         assert_eq!(dir_ref.start(), 0x10);
         assert_eq!(dir_ref.end(), 0x10 + 0x20);
-        assert_eq!(dir_ref.name(&arc_data), "SINGLEEN");
+        unsafe { assert_eq!(dir_ref.name(&data), "SINGLEEN"); }
         assert!(iter.next().is_none());
     }
 }
