@@ -1,57 +1,9 @@
 use crate::header::Header;
+use crate::lumps::LumpRef;
 use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 const DIRECTORY_ENTRY_SIZE: usize = 16;
-const DIRECTORY_NAME_LENGTH: usize = 8;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DirectoryRef {
-    start: usize,
-    end: usize,
-    name_offset: usize,
-}
-
-impl DirectoryRef {
-    pub fn new(start: usize, end: usize, name_offset: usize) -> Self {
-        Self {
-            start,
-            end,
-            name_offset,
-        }
-    }
-
-    pub fn name_offset(&self) -> usize {
-        self.name_offset
-    }
-
-    pub fn name(&self, data: Arc<[u8]>) -> String {
-        let slice = &data[self.name_offset..self.name_offset + DIRECTORY_NAME_LENGTH];
-        let end = slice.iter().position(|&b| b == 0).unwrap_or(DIRECTORY_NAME_LENGTH);
-        let name_bytes = &slice[..end];
-        String::from_utf8_lossy(name_bytes).to_ascii_uppercase().to_string()
-    }
-
-    pub fn range(&self) -> (usize, usize) {
-        (self.start, self.end)
-    }
-
-    pub fn start(&self) -> usize {
-        self.start
-    }
-
-    pub fn end(&self) -> usize {
-        self.end
-    }
-
-    pub fn is_marker(&self) -> bool {
-        self.start == self.end
-    }
-
-    pub fn extract_content(&self, data: Arc<[u8]>) -> Arc<[u8]> {
-        Arc::from(&data[self.start..self.end])
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DirectoryParser {
@@ -87,7 +39,7 @@ impl DirectoryParser {
 }
 
 impl IntoIterator for DirectoryParser {
-    type Item = DirectoryRef;
+    type Item = LumpRef;
     type IntoIter = DirectoryIterator;
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -112,7 +64,7 @@ impl DirectoryIterator {
 }
 
 impl Iterator for DirectoryIterator {
-    type Item = DirectoryRef;
+    type Item = LumpRef;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current >= self.end {
@@ -125,7 +77,7 @@ impl Iterator for DirectoryIterator {
         self.current = end;
         let pos = i32::from_le_bytes([entry_bytes[0], entry_bytes[1], entry_bytes[2], entry_bytes[3]]) as usize;
         let len = i32::from_le_bytes([entry_bytes[4], entry_bytes[5], entry_bytes[6], entry_bytes[7]]) as usize;
-        Some(DirectoryRef::new(
+        Some(LumpRef::new(
             pos,
             pos + len,
             start + 8,
@@ -137,52 +89,6 @@ impl Iterator for DirectoryIterator {
 mod tests {
     use super::*;
 
-    #[test]
-    fn directory_ref_can_determine_name_by_data() {
-        let data: Arc<[u8]> = Arc::from([b'T', b'E', b'S', b'T', 0, 0, 0, 0]);
-        let dir_ref = DirectoryRef::new(0, 0, 0);
-        assert_eq!(dir_ref.name(data), "TEST".to_ascii_uppercase());
-    }
-
-    #[test]
-    fn directory_ref_can_store_start() {
-        let r = DirectoryRef::new(0x1234, 0, 0);
-        assert_eq!(r.start(), 0x1234);
-    }
-
-    #[test]
-    fn directory_ref_can_store_end() {
-        let r = DirectoryRef::new(0, 0x5678, 0);
-        assert_eq!(r.end(), 0x5678);
-    }
-
-    #[test]
-    fn directory_ref_can_store_name_offset() {
-        let r = DirectoryRef::new(0, 0, 0x9ABC);
-        assert_eq!(r.name_offset(), 0x9ABC);
-    }
-
-    #[test]
-    fn directory_ref_can_store_range() {
-        let r = DirectoryRef::new(0x1111, 0x2222, 0);
-        assert_eq!(r.range(), (0x1111, 0x2222));
-    }
-
-    #[test]
-    fn directory_ref_can_identify_marker() {
-        let marker_ref = DirectoryRef::new(0x1000, 0x1000, 0);
-        let non_marker_ref = DirectoryRef::new(0x1000, 0x2000, 0);
-        assert!(marker_ref.is_marker());
-        assert!(!non_marker_ref.is_marker());
-    }
-
-    #[test]
-    fn directory_ref_can_extract_content_from_data() {
-        let data: Arc<[u8]> = Arc::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-        let dir_ref = DirectoryRef::new(2, 7, 0);
-        let content = dir_ref.extract_content(Arc::clone(&data));
-        assert_eq!(&*content, &[2, 3, 4, 5, 6]);
-    }
 
     #[test]
     fn directory_parser_can_create_from_data_and_header() {

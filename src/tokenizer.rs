@@ -1,4 +1,5 @@
-use crate::directory::{DirectoryIterator, DirectoryRef};
+use crate::directory::DirectoryIterator;
+use crate::lumps::LumpRef;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -7,7 +8,7 @@ pub enum LumpToken {
     MarkerStart(String),
     MarkerEnd(String),
     MapMarker(String),
-    Lump(String, DirectoryRef),
+    Lump(String, LumpRef),
 }
 
 impl LumpToken {

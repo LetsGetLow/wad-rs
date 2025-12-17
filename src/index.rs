@@ -1,20 +1,21 @@
 use crate::lumps::is_map_lump;
+use crate::lumps::LumpRef;
 use crate::tokenizer::LumpToken;
 use std::collections::HashMap;
-use std::iter::{Enumerate, Peekable};
+use std::iter::Peekable;
 use std::slice::Iter;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn index_tokens(tokens: &Vec<LumpToken>) -> Result<HashMap<String, usize>> {
-    let mut tokens = tokens.iter().enumerate().peekable();
+pub fn index_tokens(tokens: &Vec<LumpToken>) -> Result<HashMap<String, LumpRef>> {
+    let mut tokens = tokens.iter().peekable();
     let mut lumps = HashMap::new();
 
-    while let Some((index, token)) = tokens.peek() {
+    while let Some(token) = tokens.peek() {
         match token {
-            LumpToken::Lump(name, _) => {
-                lumps.insert(name.clone(), *index);
+            LumpToken::Lump(name, lump_ref) => {
+                lumps.insert(name.clone(), *lump_ref);
             }
 
             LumpToken::MapMarker(_) => {
@@ -36,8 +37,8 @@ pub fn index_tokens(tokens: &Vec<LumpToken>) -> Result<HashMap<String, usize>> {
     Ok(lumps)
 }
 
-fn skip_map_lumps(tokens: &mut Peekable<Enumerate<Iter<LumpToken>>>) {
-    while let Some((_, token)) = tokens.peek() {
+fn skip_map_lumps(tokens: &mut Peekable<Iter<LumpToken>>) {
+    while let Some(token) = tokens.peek() {
         match token {
             LumpToken::Lump(name, _) => {
                 if !is_map_lump(name) {
@@ -51,16 +52,16 @@ fn skip_map_lumps(tokens: &mut Peekable<Enumerate<Iter<LumpToken>>>) {
 }
 
 fn index_namespace(
-    lumps: &mut HashMap<String, usize>,
+    lumps: &mut HashMap<String, LumpRef>,
     namespace: &String,
-    tokens: &mut Peekable<Enumerate<Iter<LumpToken>>>,
+    tokens: &mut Peekable<Iter<LumpToken>>,
 ) -> Result<()> {
     tokens.next();
-    while let Some((index, token)) = tokens.peek() {
+    while let Some(token) = tokens.peek() {
         match token {
-            LumpToken::Lump(name, _) => {
+            LumpToken::Lump(name, lump_ref) => {
                 let namespaced_name = format!("{}/{}", namespace, name);
-                lumps.insert(namespaced_name, *index);
+                lumps.insert(namespaced_name, *lump_ref);
             }
             LumpToken::MarkerStart(start_marker) => {
                 let inner_namespace = start_marker.replace("_START", "");
@@ -76,7 +77,7 @@ fn index_namespace(
                     "Mismatched end marker: expected namespace '{}', found '{}'",
                     namespace, namespace_end
                 )
-                    .into());
+                .into());
             }
             _ => {}
         }
@@ -88,72 +89,78 @@ fn index_namespace(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::directory::DirectoryRef;
+    use crate::lumps::LumpRef;
     use crate::tokenizer::LumpToken;
 
     #[test]
     fn index_tokens_can_index_lumps() {
         let tokens = vec![
-            LumpToken::Lump("LUMP1".to_string(), DirectoryRef::new(0, 10, 0)),
-            LumpToken::Lump("LUMP2".to_string(), DirectoryRef::new(10, 20, 10)),
+            LumpToken::Lump("LUMP1".to_string(), LumpRef::new(0, 10, 0)),
+            LumpToken::Lump("LUMP2".to_string(), LumpRef::new(10, 20, 10)),
         ];
 
         let result = index_tokens(&tokens).unwrap();
-        assert_eq!(result.get("LUMP1"), Some(&0));
-        assert_eq!(result.get("LUMP2"), Some(&1));
+        assert_eq!(result.get("LUMP1"), Some(&LumpRef::new(0, 10, 0)));
+        assert_eq!(result.get("LUMP2"), Some(&LumpRef::new(10, 20, 10)));
     }
 
     #[test]
     fn index_tokens_skips_map_lumps() {
         let tokens = vec![
             LumpToken::MapMarker("E1M1".to_string()),
-            LumpToken::Lump("THINGS".to_string(), DirectoryRef::new(0, 10, 0)),
-            LumpToken::Lump("LINEDEFS".to_string(), DirectoryRef::new(10, 20, 10)),
-            LumpToken::Lump("SIDEDEFS".to_string(), DirectoryRef::new(20, 30, 20)),
-            LumpToken::Lump("VERTEXES".to_string(), DirectoryRef::new(30, 40, 30)),
-            LumpToken::Lump("SEGS".to_string(), DirectoryRef::new(60, 70, 60)),
-            LumpToken::Lump("SSECTORS".to_string(), DirectoryRef::new(50, 60, 50)),
-            LumpToken::Lump("NODES".to_string(), DirectoryRef::new(70, 80, 70)),
-            LumpToken::Lump("SECTORS".to_string(), DirectoryRef::new(40, 50, 40)),
-            LumpToken::Lump("REJECT".to_string(), DirectoryRef::new(90, 100, 100)),
-            LumpToken::Lump("BLOCKMAP".to_string(), DirectoryRef::new(80, 90, 80)),
-            LumpToken::Lump("BEHAVIOR".to_string(), DirectoryRef::new(100, 110, 110)),
-            LumpToken::Lump("SND".to_string(), DirectoryRef::new(20, 30, 20)),
+            LumpToken::Lump("THINGS".to_string(), LumpRef::new(0, 10, 0)),
+            LumpToken::Lump("LINEDEFS".to_string(), LumpRef::new(10, 20, 10)),
+            LumpToken::Lump("SIDEDEFS".to_string(), LumpRef::new(20, 30, 20)),
+            LumpToken::Lump("VERTEXES".to_string(), LumpRef::new(30, 40, 30)),
+            LumpToken::Lump("SEGS".to_string(), LumpRef::new(60, 70, 60)),
+            LumpToken::Lump("SSECTORS".to_string(), LumpRef::new(50, 60, 50)),
+            LumpToken::Lump("NODES".to_string(), LumpRef::new(70, 80, 70)),
+            LumpToken::Lump("SECTORS".to_string(), LumpRef::new(40, 50, 40)),
+            LumpToken::Lump("REJECT".to_string(), LumpRef::new(90, 100, 100)),
+            LumpToken::Lump("BLOCKMAP".to_string(), LumpRef::new(80, 90, 80)),
+            LumpToken::Lump("BEHAVIOR".to_string(), LumpRef::new(100, 110, 110)),
+            LumpToken::Lump("SND".to_string(), LumpRef::new(20, 30, 20)),
         ];
 
         let result = index_tokens(&tokens).unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result.get("SND"), Some(&12));
+        assert_eq!(result.get("SND"), Some(&LumpRef::new(20, 30, 20)));
     }
 
     #[test]
     fn index_tokens_can_index_namespaced_lumps() {
         let tokens = vec![
             LumpToken::MarkerStart("S_START".to_string()),
-            LumpToken::Lump("LUMP".to_string(), DirectoryRef::new(0, 10, 0)),
+            LumpToken::Lump("LUMP".to_string(), LumpRef::new(0, 10, 0)),
             LumpToken::MarkerEnd("S_END".to_string()),
-            LumpToken::Lump("LUMP".to_string(), DirectoryRef::new(10, 20, 10)),
+            LumpToken::Lump("LUMP".to_string(), LumpRef::new(10, 20, 10)),
         ];
 
         let result = index_tokens(&tokens).unwrap();
-        assert_eq!(result.get("S/LUMP"), Some(&1));
-        assert_eq!(result.get("LUMP"), Some(&3));
+        assert_eq!(result.get("S/LUMP"), Some(&LumpRef::new(0, 10, 0)));
+        assert_eq!(result.get("LUMP"), Some(&LumpRef::new(10, 20, 10)));
     }
 
     #[test]
     fn index_tokens_detects_nested_namespaces() {
         let tokens = vec![
             LumpToken::MarkerStart("OUTER_START".to_string()),
-            LumpToken::Lump("OUTER_LUMP".to_string(), DirectoryRef::new(0, 10, 0)),
+            LumpToken::Lump("OUTER_LUMP".to_string(), LumpRef::new(0, 10, 0)),
             LumpToken::MarkerStart("INNER_START".to_string()),
-            LumpToken::Lump("INNER_LUMP".to_string(), DirectoryRef::new(10, 20, 10)),
+            LumpToken::Lump("INNER_LUMP".to_string(), LumpRef::new(10, 20, 10)),
             LumpToken::MarkerEnd("INNER_END".to_string()),
             LumpToken::MarkerEnd("OUTER_END".to_string()),
         ];
 
         let result = index_tokens(&tokens).unwrap();
-        assert_eq!(result.get("OUTER/OUTER_LUMP"), Some(&1));
-        assert_eq!(result.get("OUTER/INNER/INNER_LUMP"), Some(&3));
+        assert_eq!(
+            result.get("OUTER/OUTER_LUMP"),
+            Some(&LumpRef::new(0, 10, 0))
+        );
+        assert_eq!(
+            result.get("OUTER/INNER/INNER_LUMP"),
+            Some(&LumpRef::new(10, 20, 10))
+        );
     }
 
     #[test]
@@ -169,7 +176,7 @@ mod tests {
     #[test]
     fn index_tokens_can_detect_dangling_end_marker() {
         let tokens = vec![
-            LumpToken::Lump("LUMP1".to_string(), DirectoryRef::new(0, 10, 0)),
+            LumpToken::Lump("LUMP1".to_string(), LumpRef::new(0, 10, 0)),
             LumpToken::MarkerEnd("S_END".to_string()),
         ];
         let result = index_tokens(&tokens);

@@ -1,7 +1,8 @@
-use crate::directory::{DirectoryParser, DirectoryRef};
+use crate::directory::DirectoryParser;
 use crate::header::{Header, MagicString};
+use crate::lumps::LumpRef;
 use crate::tokenizer::tokenize_lumps;
-use crate::{LumpToken, index_tokens};
+use crate::{index_tokens, LumpToken};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::sync::Arc;
@@ -12,7 +13,7 @@ type Result<T> = std::result::Result<T, Error>;
 pub struct WadIndex {
     name: String,
     file_type: MagicString,
-    lump_index: HashMap<String, usize>,
+    lump_index: HashMap<String, LumpRef>,
     tokens: Vec<LumpToken>,
 }
 
@@ -37,27 +38,22 @@ impl WadIndex {
 
         Ok(wad_reader)
     }
-    pub fn get_lump_index(&self) -> &HashMap<String, usize> {
+    pub fn get_lump_index(&self) -> &HashMap<String, LumpRef> {
         &self.lump_index
     }
 
-    pub fn get_lump_by_namespaces(
+    pub fn get_lump(
         &self,
         namespaces: Vec<String>,
         name: &str,
-    ) -> Option<&DirectoryRef> {
+    ) -> Option<&LumpRef> {
         let namespace = namespaces
             .iter()
             .fold("".to_string(), |acc, namespase| acc.add(namespase).add("/"));
 
         let full_name = namespace.add(name);
 
-        let index = *self.lump_index.get(&full_name)?;
-        if let LumpToken::Lump(_, dir_ref) = &self.tokens[index] {
-            Some(dir_ref)
-        } else {
-            None
-        }
+        self.lump_index.get(&full_name)
     }
 
     pub fn get_name(&self) -> &String {
@@ -115,7 +111,7 @@ mod tests {
             WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
 
         let lump =
-            wad.get_lump_by_namespaces(vec!["P".to_string(), "P1".to_string()], "W13_A");
+            wad.get_lump(vec!["P".to_string(), "P1".to_string()], "W13_A");
         assert!(lump.is_some());
     }
 
@@ -126,7 +122,7 @@ mod tests {
         let wad =
             WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
 
-        let lump = wad.get_lump_by_namespaces(
+        let lump = wad.get_lump(
             vec!["MAPS".to_string(), "E1M1".to_string()],
             "NON_EXISTENT_LUMP",
         );
@@ -140,7 +136,7 @@ mod tests {
         let wad =
             WadIndex::from_bytes("freedoom1.wad".to_string(), Arc::clone(&wad_bytes)).unwrap();
 
-        let lump = wad.get_lump_by_namespaces(
+        let lump = wad.get_lump(
             vec!["MAPS".to_string(), "NON_EXISTENT_NAMESPACE".to_string()],
             "THINGS",
         );

@@ -1,6 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use std::sync::Arc;
-use wad_rs::{index_tokens, DirectoryRef, LumpToken, WadIndex};
+use wad_rs::{index_tokens, LumpToken, WadIndex};
+use wad_rs::LumpRef;
 
 const WAD_DATA: &[u8] = include_bytes!("../assets/wad/freedoom1.wad").as_slice();
 
@@ -23,10 +24,10 @@ fn bench_wad_from_bytes(b: &mut Criterion) {
 fn bench_indexing_lumps(b: &mut Criterion) {
     let tokens = vec![
         LumpToken::MarkerStart("S_START".to_string()),
-        LumpToken::Lump("TEST1".to_string(), DirectoryRef::new(0, 0, 0)),
-        LumpToken::Lump("TEST2".to_string(), DirectoryRef::new(0, 0, 0)),
+        LumpToken::Lump("TEST1".to_string(), LumpRef::new(0, 0, 0)),
+        LumpToken::Lump("TEST2".to_string(), LumpRef::new(0, 0, 0)),
         LumpToken::MarkerEnd("S_END".to_string()),
-        LumpToken::Lump("TEST3".to_string(), DirectoryRef::new(0, 0, 0)),
+        LumpToken::Lump("TEST3".to_string(), LumpRef::new(0, 0, 0)),
     ];
 
 
