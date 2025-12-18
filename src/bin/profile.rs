@@ -65,13 +65,3 @@ impl AudioStream {
         self.sink.sleep_until_end();
     }
 }
-
-fn convert_8bit_to_f32(data: &[u8]) -> Vec<f32> {
-    data.iter().map(|&b| (b as f32 - 128.0) / 128.0).collect()
-}
-
-fn extract_sample_info(data: &[u8]) -> (u32, usize) {
-    let sample_rate = u16::from_le_bytes([data[2], data[3]]) as u32;
-    let sample_count = u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize;
-    (sample_rate, sample_count)
-}
