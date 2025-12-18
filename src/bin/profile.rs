@@ -1,10 +1,10 @@
 use rodio::buffer::SamplesBuffer;
 use rodio::{OutputStream, OutputStreamBuilder, Sink, StreamError};
 use std::rc::Rc;
-use wad_rs::audio::SoundSample;
+use wad_rs::audio::{MusicSample, MusicType, SoundSample};
 
 fn main() {
-    let wad_data = include_bytes!("../../assets/wad/freedoom2.wad").to_vec();
+    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad").to_vec();
     let wad_data = Rc::from(wad_data);
     let wad =
         wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), Rc::clone(&wad_data)).unwrap();
@@ -30,20 +30,34 @@ fn main() {
             continue;
         }
 
-        if name.starts_with("DS") {
+        if name.starts_with("D_") {
             assert!(wad_data.len() >= 8);
             let data = wad_data[lump_ref.start()..lump_ref.end()].as_ref();
-            let sample = wad_rs::audio::SoundSample::try_from(data).unwrap();
-            audio_stream.append_sound(sample);
+            match MusicSample::determine_type(&data) {
+                MusicType::Mus => {
+                    println!("Lump {name} is a MUS file");
+                    // let sample = SoundSample::try_from_mus(data).unwrap();
+                    // audio_stream.append_sound(sample);
+                }
+                MusicType::Midi => {
+                    println!("Lump {name} is a MIDI file");
+                    // let sample = SoundSample::try_from_midi(data).unwrap();
+                    // audio_stream.append_sound(sample);
+                }
+                MusicType::Unknown => {
+                    println!("Lump {name} is not a audio format, skipping");
+                }
+            }
+            // audio_stream.append_sound(sample);
         }
     }
 
-    println!("Playing all samples");
-    audio_stream.play();
+    // println!("Playing all samples");
+    // audio_stream.play();
 }
 
 pub struct AudioStream {
-    stream: OutputStream,
+    _stream: OutputStream, // Keep the stream alive
     sink: Sink,
 }
 
@@ -52,7 +66,7 @@ impl AudioStream {
         let stream = OutputStreamBuilder::open_default_stream()?;
         let sink = Sink::connect_new(stream.mixer());
 
-        Ok(AudioStream { stream, sink })
+        Ok(AudioStream { _stream: stream, sink })
     }
 
     pub fn append_sound(&self, audio: SoundSample) {

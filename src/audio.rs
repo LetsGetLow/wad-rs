@@ -60,9 +60,33 @@ impl TryFrom<&[u8]> for SoundSample {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MusicType {
+    Mus,
+    Midi,
+    Unknown,
+}
+
+/// A structure representing a music file.
+#[derive(Debug, Clone)]
+pub struct MusicSample {
+}
+
+impl MusicSample {
+    pub fn determine_type(data: &[u8]) -> MusicType {
+        match data.get(..4) {
+            Some(b"MUS\x1A") => MusicType::Mus,
+            Some(b"MThd") => MusicType::Midi,
+            _ => MusicType::Unknown,
+        }
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn sound_sample_conversion_fails_on_to_short_data() {
         let data = vec![0u8; 4];
@@ -109,5 +133,18 @@ mod tests {
         let invalid_magic = [0x04, 0x00];
         assert!(SoundSample::is_sound_sample(&valid_magic));
         assert!(!SoundSample::is_sound_sample(&invalid_magic));
+    }
+
+    #[test]
+    fn music_sample_detects_types() {
+        let mus_data = b"MUS\x1Arest of the data";
+        let midi_data = b"MThdrest of the data";
+        let unknown_data = b"XXXXrest of the data";
+        let too_short_data = b"MU";
+
+        assert_eq!(MusicSample::determine_type(mus_data), MusicType::Mus);
+        assert_eq!(MusicSample::determine_type(midi_data), MusicType::Midi);
+        assert_eq!(MusicSample::determine_type(unknown_data), MusicType::Unknown);
+        assert_eq!(MusicSample::determine_type(too_short_data), MusicType::Unknown);
     }
 }
