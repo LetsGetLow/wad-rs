@@ -31,7 +31,6 @@ fn main() {
         }
 
         if name.starts_with("DS") {
-            println!("append sound lump: {name} at {}", lump_ref.start());
             assert!(wad_data.len() >= 8);
             let data = wad_data[lump_ref.start()..lump_ref.end()].as_ref();
             let sample = wad_rs::audio::SoundSample::try_from(data).unwrap();
@@ -39,7 +38,7 @@ fn main() {
         }
     }
 
-    // println!("Playing");
+    println!("Playing all samples");
     audio_stream.play();
 }
 

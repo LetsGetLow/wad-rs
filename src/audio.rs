@@ -3,13 +3,12 @@
 ///
 /// # Format
 /// The sound sample can be created from a byte slice that follows a specific format:
-/// - 8 bytes header followed by audio sample data.
+/// - 8 bytes header followed by audio sample data as 8-bit unsigned integers.
 ///
 /// # Header Format
-/// - The first 2 bytes represent the magic number (u16, little-endian, should be 768).
+/// - The first 2 bytes represent the magic number (u16, little-endian, always 768).
 /// - The next 2 bytes represent the sample rate (u16, little-endian).
 /// - The next 4 bytes represent the number of samples (u32, little-endian).
-/// - The remaining bytes represent the audio samples as 8-bit unsigned integers.
 #[derive(Debug, Clone)]
 pub struct SoundSample {
     sample_rate: u32,
@@ -24,6 +23,10 @@ impl SoundSample {
     pub fn sample(&self) -> &[f32] {
         &self.sample
     }
+
+    pub fn is_sound_sample(data: &[u8]) -> bool {
+        data.starts_with(&[0x03, 0x00])
+    }
 }
 
 impl TryFrom<&[u8]> for SoundSample {
@@ -34,8 +37,7 @@ impl TryFrom<&[u8]> for SoundSample {
             return Err("Data too short to contain valid sound sample header".into());
         }
 
-        let magic_number = u16::from_be_bytes([data[0], data[1]]);
-        if magic_number != 768 {
+        if data[0] != 0x03 || data[1] != 0x00 {
             return Err("Invalid sound sample magic number".into());
         }
 
@@ -46,8 +48,7 @@ impl TryFrom<&[u8]> for SoundSample {
             return Err("Data too short to contain declared number of samples".into());
         }
 
-        let mut sample = Vec::with_capacity(sample_count);
-        sample = data[8..sample_end]
+        let sample = data[8..sample_end]
             .iter()
             .map(|&b| (b as f32 - 128.0) / 128.0)
             .collect();
@@ -58,7 +59,6 @@ impl TryFrom<&[u8]> for SoundSample {
         })
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -101,5 +101,13 @@ mod tests {
         let sound_sample = result.unwrap();
         assert_eq!(sound_sample.sample_rate(), 8000);
         assert_eq!(sound_sample.sample(), &[-1.0, 0.0, 0.9921875, -0.0078125]);
+    }
+
+    #[test]
+    fn sound_sample_detects_valid_magic_number() {
+        let valid_magic = [0x03, 0x00];
+        let invalid_magic = [0x04, 0x00];
+        assert!(SoundSample::is_sound_sample(&valid_magic));
+        assert!(!SoundSample::is_sound_sample(&invalid_magic));
     }
 }
