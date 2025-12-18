@@ -2,6 +2,8 @@
 name = "wad-rs"
 version = "0.1.1"
 edition = "2024"
+authors = ["Mathias Lüer<m.lueer80@gmail.com>"]
+description = "A Rust library for indexing WAD files and converting Lumps to more usable formats."
 
 [dependencies]
 rodio = "0.21.1"
