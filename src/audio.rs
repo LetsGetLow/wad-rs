@@ -1,6 +1,19 @@
+/// A structure representing a sound sample with its sample rate and audio data.
+/// The audio data is stored as a vector of f32 samples normalized between -1.0 and 1.0.
+///
+/// # Format
+/// The sound sample can be created from a byte slice that follows a specific format:
+/// - 8 bytes header followed by audio sample data.
+///
+/// # Header Format
+/// - The first 2 bytes represent the magic number (u16, little-endian, should be 768).
+/// - The next 2 bytes represent the sample rate (u16, little-endian).
+/// - The next 4 bytes represent the number of samples (u32, little-endian).
+/// - The remaining bytes represent the audio samples as 8-bit unsigned integers.
+#[derive(Debug, Clone)]
 pub struct SoundSample {
-    pub sample_rate: u32,
-    pub sample: Vec<f32>,
+    sample_rate: u32,
+    sample: Vec<f32>,
 }
 
 impl SoundSample {

@@ -4,7 +4,7 @@ use std::rc::Rc;
 use wad_rs::audio::SoundSample;
 
 fn main() {
-    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad").to_vec();
+    let wad_data = include_bytes!("../../assets/wad/freedoom2.wad").to_vec();
     let wad_data = Rc::from(wad_data);
     let wad =
         wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), Rc::clone(&wad_data)).unwrap();
@@ -57,7 +57,7 @@ impl AudioStream {
     }
 
     pub fn append_sound(&self, audio: SoundSample) {
-        let source = SamplesBuffer::new(1, audio.sample_rate, audio.sample);
+        let source = SamplesBuffer::new(1, audio.sample_rate(), audio.sample());
         self.sink.append(source);
     }
 
