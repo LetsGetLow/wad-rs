@@ -40,20 +40,23 @@ fn main() {
                     // audio_stream.append_sound(sample);
                 }
                 MusicType::Midi => {
-                    println!("Lump {name} is a MIDI file");
-                    // let sample = SoundSample::try_from_midi(data).unwrap();
-                    // audio_stream.append_sound(sample);
+                    let sample = MusicSample::try_from(data).unwrap();
+                    audio_stream.append_music(sample.clone());
+                    println!("Lump {name} is a MIDI file: {} sec", sample.sample().len() as f32 / sample.sample_rate() as f32);
+                    println!("size: {} bytes", sample.sample().len());
+                    // let file = std::fs::File::create(format!("{name}.mid")).unwrap();
+                    // std::io::copy(&mut data.as_ref(), &mut std::io::BufWriter::new(file)).unwrap();
+                    break
                 }
                 MusicType::Unknown => {
                     println!("Lump {name} is not a audio format, skipping");
                 }
             }
-            // audio_stream.append_sound(sample);
         }
     }
 
-    // println!("Playing all samples");
-    // audio_stream.play();
+    println!("Playing all samples");
+    audio_stream.play();
 }
 
 pub struct AudioStream {
@@ -71,6 +74,11 @@ impl AudioStream {
 
     pub fn append_sound(&self, audio: SoundSample) {
         let source = SamplesBuffer::new(1, audio.sample_rate(), audio.sample());
+        self.sink.append(source);
+    }
+
+    pub fn append_music(&self, audio: MusicSample) {
+        let source = SamplesBuffer::new(audio.channels(), audio.sample_rate(), audio.sample());
         self.sink.append(source);
     }
 

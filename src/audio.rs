@@ -1,9 +1,19 @@
+use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
+use std::fs::File;
+use std::io::Cursor;
+use std::sync::Arc;
+
+type Error = Box<dyn std::error::Error>;
+type Result<T> = std::result::Result<T, Error>;
+const DEFAULT_MIDI_SAMPLE_RATE: i32 = 16000;
+
+
 /// A structure representing a sound sample with its sample rate and audio data.
 /// The audio data is stored as a vector of f32 samples normalized between -1.0 and 1.0.
 ///
-/// # Format
-/// The sound sample can be created from a byte slice that follows a specific format:
-/// - 8 bytes header followed by audio sample data as 8-bit unsigned integers.
+/// # Format Description
+/// The sound sample can be created from a byte slice that follows a specific format.
+/// 8 bytes header followed by audio sample data as 8-bit unsigned integers.
 ///
 /// # Header Format
 /// - The first 2 bytes represent the magic number (u16, little-endian, always 768).
@@ -30,9 +40,9 @@ impl SoundSample {
 }
 
 impl TryFrom<&[u8]> for SoundSample {
-    type Error = Box<dyn std::error::Error>;
+    type Error = Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+    fn try_from(data: &[u8]) -> Result<Self> {
         if data.len() < 8 {
             return Err("Data too short to contain valid sound sample header".into());
         }
@@ -70,9 +80,24 @@ pub enum MusicType {
 /// A structure representing a music file.
 #[derive(Debug, Clone)]
 pub struct MusicSample {
+    sample_rate: u32,
+    sample_channels: u16,
+    sample: Vec<f32>,
 }
 
 impl MusicSample {
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    pub fn channels(&self) -> u16 {
+        self.sample_channels
+    }
+
+    pub fn sample(&self) -> &[f32] {
+        &self.sample
+    }
+
     pub fn determine_type(data: &[u8]) -> MusicType {
         match data.get(..4) {
             Some(b"MUS\x1A") => MusicType::Mus,
@@ -80,6 +105,64 @@ impl MusicSample {
             _ => MusicType::Unknown,
         }
     }
+}
+
+impl TryFrom<&[u8]> for MusicSample {
+    type Error = Error;
+
+    fn try_from(data: &[u8]) -> Result<Self> {
+        let format = MusicSample::determine_type(data);
+        match format {
+            MusicType::Mus => {
+                // TODO: need to get hands on WAD with MUS files to implement parser
+                todo!()
+            }
+            MusicType::Midi => {
+                let sample = midi_to_pcm(data, DEFAULT_MIDI_SAMPLE_RATE);
+                Ok(MusicSample {
+                    sample_rate: DEFAULT_MIDI_SAMPLE_RATE as u32,
+                    sample_channels: 1,
+                    sample,
+                })
+            }
+            MusicType::Unknown => Err("Unknown music format".into()),
+        }
+    }
+}
+
+fn midi_to_pcm(mid: &[u8], sample_rate: i32) -> Vec<f32>
+{
+    let mut sf2 = File::open("assets/FluidR3_GM.sf2").unwrap();
+    let sound_font = Arc::new(SoundFont::new(&mut sf2).unwrap());
+
+    // Load the MIDI file.
+    let mut mid = Cursor::new(mid);
+    let midi_file = Arc::new(MidiFile::new(&mut mid).unwrap());
+
+    // Create the MIDI file sequencer.
+    let settings = SynthesizerSettings::new(sample_rate);
+    let synthesizer = Synthesizer::new(&sound_font, &settings).unwrap();
+    let mut sequencer = MidiFileSequencer::new(synthesizer);
+
+    // Play the MIDI file.
+    sequencer.play(&midi_file, false);
+
+    // The output buffer.
+    let sample_count = (settings.sample_rate as f64 * midi_file.get_length()) as usize;
+    let mut left: Vec<f32> = vec![0_f32; sample_count];
+    let mut right: Vec<f32> = vec![0_f32; sample_count];
+
+    // Render the waveform.
+    sequencer.render(&mut left[..], &mut right[..]);
+
+    // Write the waveform to the file.
+    let mut sample = Vec::with_capacity(left.len() + right.len());
+    for t in 0..left.len() {
+        // Mix down to mono
+        sample.push((left[t] + right[t]) * 0.5);
+    }
+
+    sample
 }
 
 

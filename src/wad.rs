@@ -13,7 +13,7 @@ type Result<T> = std::result::Result<T, Error>;
 
 pub struct WadIndex {
     name: String,
-    data: Rc<[u8]>,
+    _data: Rc<[u8]>,
     file_type: MagicString,
     lump_index: HashMap<String, LumpRef>,
     tokens: Rc<Vec<LumpToken>>,
@@ -38,7 +38,7 @@ impl WadIndex {
             file_type,
             tokens,
             lump_index,
-            data,
+            _data: data,
         };
 
         Ok(wad_reader)
