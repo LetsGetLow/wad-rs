@@ -22,16 +22,22 @@ const DEFAULT_MIDI_SAMPLE_RATE: i32 = 16000;
 #[derive(Debug, Clone)]
 pub struct SoundSample {
     sample_rate: u32,
-    sample: Vec<f32>,
+    samples: Vec<f32>,
 }
 
 impl SoundSample {
+   pub fn new(sample_rate: u32, samples: Vec<f32>) -> Self {
+        SoundSample {
+            sample_rate,
+            samples,
+        }
+    }
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate
     }
 
     pub fn sample(&self) -> &[f32] {
-        &self.sample
+        &self.samples
     }
 
     pub fn is_sound_sample(data: &[u8]) -> bool {
@@ -65,7 +71,7 @@ impl TryFrom<&[u8]> for SoundSample {
 
         Ok(SoundSample {
             sample_rate,
-            sample,
+            samples: sample,
         })
     }
 }
