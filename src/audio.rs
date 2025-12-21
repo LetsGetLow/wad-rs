@@ -138,7 +138,7 @@ impl TryFrom<&[u8]> for MusicSample {
 
 fn midi_to_pcm(mid: &[u8], sample_rate: i32) -> Vec<f32>
 {
-    let mut sf2 = File::open("assets/FluidR3_GM.sf2").unwrap();
+    let mut sf2 = File::open("assets/microgm-opt.sf2").unwrap();
     let sound_font = Arc::new(SoundFont::new(&mut sf2).unwrap());
 
     // Load the MIDI file.

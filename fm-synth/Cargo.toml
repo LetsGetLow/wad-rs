@@ -1,8 +1,0 @@
-[package]
-name = "fm-synth"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-midly.workspace = true
-fastrand.workspace =true
