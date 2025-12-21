@@ -22,8 +22,12 @@ rustysynth.workspace = true
 criterion.workspace = true
 
 [[bin]]
-name = "profile"
+name = "audio_demo"
 path = "src/bin/audio_demo.rs"
+
+[[bin]]
+name = "palette_demo"
+path = "src/bin/palette_demo.rs"
 
 [profile.release]
 opt-level = 3
