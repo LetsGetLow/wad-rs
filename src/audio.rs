@@ -7,7 +7,6 @@ type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 const DEFAULT_MIDI_SAMPLE_RATE: i32 = 16000;
 
-
 /// A structure representing a sound sample with its sample rate and audio data.
 /// The audio data is stored as a vector of f32 samples normalized between -1.0 and 1.0.
 ///
@@ -26,7 +25,7 @@ pub struct SoundSample {
 }
 
 impl SoundSample {
-   pub fn new(sample_rate: u32, samples: Vec<f32>) -> Self {
+    pub fn new(sample_rate: u32, samples: Vec<f32>) -> Self {
         SoundSample {
             sample_rate,
             samples,
@@ -136,9 +135,8 @@ impl TryFrom<&[u8]> for MusicSample {
     }
 }
 
-fn midi_to_pcm(mid: &[u8], sample_rate: i32) -> Vec<f32>
-{
-    let mut sf2 = File::open("assets/microgm-opt.sf2").unwrap();
+fn midi_to_pcm(mid: &[u8], sample_rate: i32) -> Vec<f32> {
+    let mut sf2 = File::open("../assets/microgm.sf2").unwrap();
     let sound_font = Arc::new(SoundFont::new(&mut sf2).unwrap());
 
     // Load the MIDI file.
@@ -170,7 +168,6 @@ fn midi_to_pcm(mid: &[u8], sample_rate: i32) -> Vec<f32>
 
     sample
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -233,7 +230,13 @@ mod tests {
 
         assert_eq!(MusicSample::determine_type(mus_data), MusicType::Mus);
         assert_eq!(MusicSample::determine_type(midi_data), MusicType::Midi);
-        assert_eq!(MusicSample::determine_type(unknown_data), MusicType::Unknown);
-        assert_eq!(MusicSample::determine_type(too_short_data), MusicType::Unknown);
+        assert_eq!(
+            MusicSample::determine_type(unknown_data),
+            MusicType::Unknown
+        );
+        assert_eq!(
+            MusicSample::determine_type(too_short_data),
+            MusicType::Unknown
+        );
     }
 }
