@@ -3,7 +3,7 @@ extern crate core;
 use rodio::buffer::SamplesBuffer;
 use rodio::{OutputStream, OutputStreamBuilder, Sink, StreamError};
 use std::rc::Rc;
-use wad_rs::audio::{MusicSample, MusicType, SoundSample};
+use wad_rs::audio::{MusicSample, SoundSample};
 
 fn main() {
     let wad_data = include_bytes!("../../assets/wad/freedoom1.wad").to_vec();
@@ -35,25 +35,14 @@ fn main() {
         if name.starts_with("D_") {
             assert!(wad_data.len() >= 8);
             let data = wad_data[lump_ref.start()..lump_ref.end()].as_ref();
-            match MusicSample::determine_type(&data) {
-                MusicType::Mus => {
-                    println!("Lump {name} is a MUS file");
-                    // let sample = SoundSample::try_from_mus(data).unwrap();
-                    // audio_stream.append_sound(sample);
-                }
-                MusicType::Midi => {
-                    let sample = MusicSample::try_from(data).unwrap();
-                    audio_stream.append_music(sample.clone());
-                    println!(
-                        "Lump {name} is a MIDI file: {} sec",
-                        sample.sample().len() as f32 / sample.sample_rate() as f32
-                    );
-                    println!("size: {} bytes", sample.sample().len());
-                }
-                MusicType::Unknown => {
-                    println!("Lump {name} is not a audio format, skipping");
-                }
-            }
+            let sample = MusicSample::try_from(data).unwrap();
+            audio_stream.append_music(sample.clone());
+            println!(
+                "Lump {name} : {} seconds (Midi size: {} bytes, pcm size: {} bytes)",
+                sample.sample().len() as f32 / sample.sample_rate() as f32,
+                data.len(),
+                sample.sample().len() * size_of::<f32>()
+            );
         }
     }
     println!("Playing all samples");
