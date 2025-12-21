@@ -1,0 +1,16 @@
+fn main() {
+    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad").to_vec();
+    let wad_data = std::rc::Rc::from(wad_data);
+    let wad =
+        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), std::rc::Rc::clone(&wad_data)).unwrap();
+
+    let palette_lump = wad.get_lump(Vec::new(), "PLAYPAL").unwrap();
+    let palette_data = &wad_data[palette_lump.start()..palette_lump.end()];
+    let palette = wad_rs::palette::Palette::try_from(palette_data).unwrap();
+    for i in 0..256 {
+        let rgb = palette.get_rgb(i).unwrap();
+        let rgba = palette.get_rgba(i).unwrap();
+        println!("Color {}: R={}, G={}, B={}", i, rgb[0], rgb[1], rgb[2]);
+        println!("Color {}: R={}, G={}, B={}, A={}", i, rgba[0], rgba[1], rgba[2], rgba[3]);
+    }
+}
