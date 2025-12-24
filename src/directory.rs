@@ -139,11 +139,11 @@ mod tests {
         let first_ref = directory.next().unwrap();
         assert_eq!(first_ref.start(), 0x34);
         assert_eq!(first_ref.end(), 0x34 + 0x78);
-        assert_eq!(unsafe {first_ref.name(&data)}, "ENTRYONE");
+        assert_eq!(first_ref.name(&data).unwrap(), "ENTRYONE");
         let second_ref = directory.next().unwrap();
         assert_eq!(second_ref.start(), 0x9A);
         assert_eq!(second_ref.end(), 0x9A + 0xBC);
-        unsafe { assert_eq!(second_ref.name(&data), "ENTRYTWO"); }
+        assert_eq!(second_ref.name(&data).unwrap(), "ENTRYTWO");
         assert!(directory.next().is_none());
     }
 
@@ -166,7 +166,7 @@ mod tests {
         let dir_ref = iter.next().unwrap();
         assert_eq!(dir_ref.start(), 0x10);
         assert_eq!(dir_ref.end(), 0x10 + 0x20);
-        unsafe { assert_eq!(dir_ref.name(&data), "SINGLEEN"); }
+        assert_eq!(dir_ref.name(&data).unwrap(), "SINGLEEN");
         assert!(iter.next().is_none());
     }
 }

@@ -8,8 +8,6 @@ type Result<T> = std::result::Result<T, Error>;
 
 pub type SampleRate = u32;
 
-const DEFAULT_MIDI_SAMPLE_RATE: SampleRate = 16000;
-
 /// A structure representing a sound sample with its sample rate and audio data.
 /// The audio data is stored as a vector of f32 samples normalized between -1.0 and 1.0.
 ///

@@ -1,13 +1,13 @@
+use crate::audio::SoundSample;
 use crate::directory::DirectoryParser;
 use crate::header::{Header, MagicString};
 use crate::index::index_tokens;
 use crate::lump::LumpRef;
 use crate::map::MapIterator;
-use crate::tokenizer::{tokenize_lumps, LumpToken};
+use crate::tokenizer::{LumpToken, tokenize_lumps};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::rc::Rc;
-use crate::audio::SoundSample;
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
@@ -30,11 +30,11 @@ impl WadIndex {
         let header = Header::try_from(header_bytes).map_err(|e| e.to_string())?;
         let file_type = header.identification;
         let directory = DirectoryParser::new(Rc::clone(&data), header)?;
-        let tokens = unsafe { tokenize_lumps(directory.iter(), &data) };
+        let tokens = tokenize_lumps(directory.iter(), &data)?;
         let tokens = Rc::new(tokens);
         let lump_index = index_tokens(&tokens)?;
 
-        let wad_reader = WadIndex {
+        let wad_index = WadIndex {
             name,
             file_type,
             tokens,
@@ -42,23 +42,22 @@ impl WadIndex {
             data,
         };
 
-        Ok(wad_reader)
+        Ok(wad_index)
     }
     pub fn get_lump_index(&self) -> &HashMap<String, LumpRef> {
         &self.lump_index
     }
 
     pub fn get_lump(&self, namespaces: Vec<String>, name: &str) -> Option<&LumpRef> {
-        let namespace = namespaces
+        let full_name = namespaces
             .iter()
-            .fold("".to_string(), |acc, namespase| acc.add(namespase).add("/"));
-
-        let full_name = namespace.add(name);
+            .fold(String::new(), |acc, namespace| acc.add(namespace).add("/"))
+            .add(name);
 
         self.lump_index.get(&full_name)
     }
 
-    pub fn get_sound_sample(&self, name:&str) -> Result<Option<SoundSample>> {
+    pub fn get_sound_sample(&self, name: &str) -> Result<Option<SoundSample>> {
         if let Some(lump_ref) = self.lump_index.get(name) {
             let start = lump_ref.start();
             let end = start + lump_ref.end();

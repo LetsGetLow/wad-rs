@@ -1,5 +1,8 @@
 use std::slice::from_raw_parts;
 
+type Error = Box<dyn std::error::Error>;
+type Result<T> = std::result::Result<T, Error>;
+
 const LUMP_NAME_LENGTH: usize = 8;
 
 pub fn is_map_lump(name: &String) -> bool {
@@ -52,16 +55,19 @@ impl LumpRef {
         self.name_offset
     }
 
-    pub unsafe fn name(&self, data: &[u8]) -> String {
+    pub fn name(&self, data: &[u8]) -> Result<String> {
+        if data.len() < self.name_offset + LUMP_NAME_LENGTH {
+            return Err("Data too small to contain lump name".into());
+        }
         unsafe {
             let ptr = data.as_ptr().add(self.name_offset);
             for i in 0..LUMP_NAME_LENGTH {
                 if *ptr.add(i) == 0 {
                     let b = from_raw_parts(ptr, i);
-                    return String::from_utf8_lossy(b).to_string();
+                    return Ok(String::from_utf8_lossy(b).to_string());
                 }
             }
-            String::from_utf8_lossy(from_raw_parts(ptr, LUMP_NAME_LENGTH)).to_string()
+            Ok(String::from_utf8_lossy(from_raw_parts(ptr, LUMP_NAME_LENGTH)).to_string())
         }
     }
 
@@ -118,7 +124,7 @@ mod tests {
     fn directory_ref_can_determine_name_by_data() {
         let data = Rc::from([b'T', b'E', b'S', b'T', 0, 0, 0, 0]);
         let dir_ref = LumpRef::new(0, 0, 0);
-        unsafe { assert_eq!(dir_ref.name(&data), "TEST".to_ascii_uppercase()); }
+        assert_eq!(dir_ref.name(&data).unwrap(), "TEST".to_ascii_uppercase());
     }
 
     #[test]

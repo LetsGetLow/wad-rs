@@ -1,6 +1,9 @@
 use crate::directory::DirectoryIterator;
 use crate::lump::LumpRef;
 
+type Error = Box<dyn std::error::Error>;
+type Result<T> = std::result::Result<T, Error>;
+
 #[derive(Debug, Clone)]
 pub enum LumpToken {
     MarkerStart(String),
@@ -18,13 +21,12 @@ impl LumpToken {
         name.ends_with("_END")
     }
 }
-pub unsafe fn tokenize_lumps(directory_iterator: DirectoryIterator, data: &[u8]) -> Vec<LumpToken> {
+pub fn tokenize_lumps(directory_iterator: DirectoryIterator, data: &[u8]) -> Result<Vec<LumpToken>> {
     let mut tokens = Vec::new();
 
     for dir_ref in directory_iterator {
-        let name = unsafe { dir_ref.name(&data) };
+        let name = dir_ref.name(&data)?;
         if dir_ref.is_marker() {
-            let name = unsafe { dir_ref.name(&data) };
             if is_map_marker(&name) {
                 tokens.push(LumpToken::MapMarker(name));
             } else if LumpToken::is_start_marker(&name) {
@@ -37,7 +39,7 @@ pub unsafe fn tokenize_lumps(directory_iterator: DirectoryIterator, data: &[u8])
         }
     }
 
-    tokens
+    Ok(tokens)
 }
 
 fn is_map_marker(name: &str) -> bool {
@@ -62,7 +64,7 @@ mod tests {
         ]);
 
         let dir_iterator = DirectoryIterator::seed_test_data(Rc::clone(&data), 0, 32);
-        let tokens = unsafe { tokenize_lumps(dir_iterator, &data) };
+        let tokens = tokenize_lumps(dir_iterator, &data).unwrap();
 
         assert_eq!(tokens.len(), 2);
         match &tokens[0] {
@@ -84,7 +86,7 @@ mod tests {
         ]);
 
         let dir_iterator = DirectoryIterator::seed_test_data(Rc::clone(&data), 0, 32);
-        let tokens = unsafe { tokenize_lumps(dir_iterator, &data) };
+        let tokens = tokenize_lumps(dir_iterator, &data).unwrap();
 
         assert_eq!(tokens.len(), 2);
         match &tokens[0] {
@@ -114,7 +116,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, b'E', b'1', b'M', b'2', 0, 0, 0, 0,
         ]);
         let dir_iterator = DirectoryIterator::seed_test_data(Rc::clone(&data), 0, 32);
-        let tokens = unsafe { tokenize_lumps(dir_iterator, &data) };
+        let tokens = tokenize_lumps(dir_iterator, &data).unwrap();
 
         assert_eq!(tokens.len(), 2);
         match &tokens[0] {
