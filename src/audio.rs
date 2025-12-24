@@ -43,17 +43,13 @@ impl SoundSample {
     pub fn is_sound_sample(data: &[u8]) -> bool {
         data.starts_with(&[0x03, 0x00])
     }
-}
 
-impl TryFrom<&[u8]> for SoundSample {
-    type Error = Error;
-
-    fn try_from(data: &[u8]) -> Result<Self> {
+    pub fn from_bytes(data: &[u8]) -> Result<Self> {
         if data.len() < 8 {
             return Err("Data too short to contain valid sound sample header".into());
         }
 
-        if data[0] != 0x03 || data[1] != 0x00 {
+        if Self::is_sound_sample(data) {
             return Err("Invalid sound sample magic number".into());
         }
 
@@ -73,6 +69,14 @@ impl TryFrom<&[u8]> for SoundSample {
             sample_rate,
             samples: sample,
         })
+    }
+}
+
+impl TryFrom<&[u8]> for SoundSample {
+    type Error = Error;
+
+    fn try_from(data: &[u8]) -> Result<Self> {
+       Self::from_bytes(data)
     }
 }
 
