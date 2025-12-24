@@ -7,13 +7,14 @@ use crate::tokenizer::{tokenize_lumps, LumpToken};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::rc::Rc;
+use crate::audio::SoundSample;
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct WadIndex {
     name: String,
-    _data: Rc<[u8]>,
+    data: Rc<[u8]>,
     file_type: MagicString,
     lump_index: HashMap<String, LumpRef>,
     tokens: Rc<Vec<LumpToken>>,
@@ -38,7 +39,7 @@ impl WadIndex {
             file_type,
             tokens,
             lump_index,
-            _data: data,
+            data: data,
         };
 
         Ok(wad_reader)
@@ -55,6 +56,17 @@ impl WadIndex {
         let full_name = namespace.add(name);
 
         self.lump_index.get(&full_name)
+    }
+
+    pub fn get_sound_sample(&self, name:&str) -> Result<Option<SoundSample>> {
+        if let Some(lump_ref) = self.lump_index.get(name) {
+            let start = lump_ref.start();
+            let end = start + lump_ref.end();
+            let lump_data = &self.data[start..end];
+            Ok(Some(SoundSample::try_from(lump_data)?))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn get_name(&self) -> &String {

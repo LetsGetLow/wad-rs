@@ -1,0 +1,25 @@
+[package]
+name = "demos"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rodio.workspace = true
+png.workspace = true
+wad-rs.path = ".."
+
+[[bin]]
+name = "sound_demo"
+path = "src/sound_demo.rs"
+
+[[bin]]
+name = "music_demo"
+path = "src/music_demo.rs"
+
+[[bin]]
+name = "palette_demo"
+path = "src/palette_demo.rs"
+
+[[bin]]
+name = "sprite_demo"
+path = "src/sprite_demo.rs"

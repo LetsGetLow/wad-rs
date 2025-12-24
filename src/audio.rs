@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
-const DEFAULT_MIDI_SAMPLE_RATE: i32 = 16000;
+
+pub type SampleRate = u32;
+
+const DEFAULT_MIDI_SAMPLE_RATE: SampleRate = 16000;
 
 /// A structure representing a sound sample with its sample rate and audio data.
 /// The audio data is stored as a vector of f32 samples normalized between -1.0 and 1.0.
@@ -20,18 +23,18 @@ const DEFAULT_MIDI_SAMPLE_RATE: i32 = 16000;
 /// - The next 4 bytes represent the number of samples (u32, little-endian).
 #[derive(Debug, Clone)]
 pub struct SoundSample {
-    sample_rate: u32,
+    sample_rate: SampleRate,
     samples: Vec<f32>,
 }
 
 impl SoundSample {
-    pub fn new(sample_rate: u32, samples: Vec<f32>) -> Self {
+    pub fn new(sample_rate: SampleRate, samples: Vec<f32>) -> Self {
         SoundSample {
             sample_rate,
             samples,
         }
     }
-    pub fn sample_rate(&self) -> u32 {
+    pub fn sample_rate(&self) -> SampleRate {
         self.sample_rate
     }
 
@@ -85,13 +88,18 @@ pub enum MusicType {
 /// A structure representing a music file.
 #[derive(Debug, Clone)]
 pub struct MusicSample {
-    sample_rate: u32,
+    sample_rate: SampleRate,
     sample_channels: u16,
     sample: Vec<f32>,
 }
 
 impl MusicSample {
-    pub fn sample_rate(&self) -> u32 {
+
+    const DEFAULT_SAMPLE_RATE: SampleRate = 16_000;
+    const MIN_SAMPLE_RATE: SampleRate = 16_000;
+    const MAX_SAMPLE_RATE: SampleRate = 44_100;
+
+    pub fn sample_rate(&self) -> SampleRate {
         self.sample_rate
     }
 
@@ -110,32 +118,43 @@ impl MusicSample {
             _ => MusicType::Unknown,
         }
     }
+
+    pub fn from_bytes(
+        data: &[u8],
+        sample_rate: SampleRate,
+        is_stereo: bool,
+    ) -> Result<Self>
+    {
+        if sample_rate < Self::MIN_SAMPLE_RATE || sample_rate > Self::MAX_SAMPLE_RATE {
+            return Err("Sample rate out of bounds".into());
+        }
+
+        let format = MusicSample::determine_type(data);
+        match format {
+            MusicType::Mus => {
+                // TODO: need to get hands on WAD with MUS files to implement parser
+                Err("MUS format not supported yet".into())
+            }
+            MusicType::Midi => Ok(MusicSample {
+                sample_rate,
+                sample_channels: if is_stereo { 2 } else { 1 },
+                sample: midi_to_pcm(data, sample_rate, is_stereo),
+            }),
+            MusicType::Unknown => Err("Unknown music format".into()),
+        }
+    }
 }
 
 impl TryFrom<&[u8]> for MusicSample {
     type Error = Error;
 
     fn try_from(data: &[u8]) -> Result<Self> {
-        let format = MusicSample::determine_type(data);
-        match format {
-            MusicType::Mus => {
-                // TODO: need to get hands on WAD with MUS files to implement parser
-                todo!()
-            }
-            MusicType::Midi => {
-                let sample = midi_to_pcm(data, DEFAULT_MIDI_SAMPLE_RATE);
-                Ok(MusicSample {
-                    sample_rate: DEFAULT_MIDI_SAMPLE_RATE as u32,
-                    sample_channels: 1,
-                    sample,
-                })
-            }
-            MusicType::Unknown => Err("Unknown music format".into()),
-        }
+        MusicSample::from_bytes(data, Self::DEFAULT_SAMPLE_RATE, true)
     }
 }
 
-fn midi_to_pcm(mid: &[u8], sample_rate: i32) -> Vec<f32> {
+/// Convert MIDI data to PCM samples using an embedded SoundFont.
+fn midi_to_pcm(mid: &[u8], sample_rate: SampleRate, is_stereo: bool) -> Vec<f32> {
     let mut sf2 = File::open("../assets/microgm.sf2").unwrap();
     let sound_font = Arc::new(SoundFont::new(&mut sf2).unwrap());
 
@@ -144,7 +163,7 @@ fn midi_to_pcm(mid: &[u8], sample_rate: i32) -> Vec<f32> {
     let midi_file = Arc::new(MidiFile::new(&mut mid).unwrap());
 
     // Create the MIDI file sequencer.
-    let settings = SynthesizerSettings::new(sample_rate);
+    let settings = SynthesizerSettings::new(sample_rate as i32);
     let synthesizer = Synthesizer::new(&sound_font, &settings).unwrap();
     let mut sequencer = MidiFileSequencer::new(synthesizer);
 
@@ -161,9 +180,16 @@ fn midi_to_pcm(mid: &[u8], sample_rate: i32) -> Vec<f32> {
 
     // Write the waveform to the file.
     let mut sample = Vec::with_capacity(left.len() + right.len());
-    for t in 0..left.len() {
-        // Mix down to mono
-        sample.push((left[t] + right[t]) * 0.5);
+    if is_stereo {
+        for t in 0..left.len() {
+            sample.push(left[t]);
+            sample.push(right[t]);
+        }
+    } else {
+        for t in 0..left.len() {
+            // Mix down to mono
+            sample.push((left[t] + right[t]) * 0.5);
+        }
     }
 
     sample
