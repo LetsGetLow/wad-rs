@@ -8,8 +8,13 @@ type Result<T> = std::result::Result<T, Error>;
 
 pub type SampleRate = u32;
 
+pub type ChannelCount = u16;
+
+pub type PcmSamples = Vec<f32>;
+
 /// A structure representing a sound sample with its sample rate and audio data.
 /// The audio data is stored as a vector of f32 samples normalized between -1.0 and 1.0.
+/// SoundSamples are typically mono audio samples.
 ///
 /// # Format Description
 /// The sound sample can be created from a byte slice that follows a specific format.
@@ -22,21 +27,15 @@ pub type SampleRate = u32;
 #[derive(Debug, Clone)]
 pub struct SoundSample {
     sample_rate: SampleRate,
-    samples: Vec<f32>,
+    samples: PcmSamples,
 }
 
 impl SoundSample {
-    pub fn new(sample_rate: SampleRate, samples: Vec<f32>) -> Self {
-        SoundSample {
-            sample_rate,
-            samples,
-        }
-    }
     pub fn sample_rate(&self) -> SampleRate {
         self.sample_rate
     }
 
-    pub fn sample(&self) -> &[f32] {
+    pub fn sample(&self) -> &PcmSamples {
         &self.samples
     }
 
@@ -49,7 +48,7 @@ impl SoundSample {
             return Err("Data too short to contain valid sound sample header".into());
         }
 
-        if Self::is_sound_sample(data) {
+        if !Self::is_sound_sample(data) {
             return Err("Invalid sound sample magic number".into());
         }
 
@@ -65,18 +64,19 @@ impl SoundSample {
             .map(|&b| (b as f32 - 128.0) / 128.0)
             .collect();
 
-        Ok(SoundSample {
+        Ok(Self {
             sample_rate,
             samples: sample,
         })
     }
 }
 
+/// Implement TryFrom<&[u8]> for SoundSample to allow easy conversion from byte slices.
 impl TryFrom<&[u8]> for SoundSample {
     type Error = Error;
 
     fn try_from(data: &[u8]) -> Result<Self> {
-       Self::from_bytes(data)
+        Self::from_bytes(data)
     }
 }
 
@@ -91,25 +91,36 @@ pub enum MusicType {
 #[derive(Debug, Clone)]
 pub struct MusicSample {
     sample_rate: SampleRate,
-    sample_channels: u16,
-    sample: Vec<f32>,
+    sample_channels: ChannelCount,
+    sample: PcmSamples,
 }
 
 impl MusicSample {
-
     const DEFAULT_SAMPLE_RATE: SampleRate = 16_000;
     const MIN_SAMPLE_RATE: SampleRate = 16_000;
     const MAX_SAMPLE_RATE: SampleRate = 44_100;
 
+    /// Returns the sample rate of the music sample.
+    ///
+    /// # Returns
+    /// - `SampleRate`: The sample rate in Hz.
     pub fn sample_rate(&self) -> SampleRate {
         self.sample_rate
     }
 
-    pub fn channels(&self) -> u16 {
+    /// Returns the number of channels in the music sample.
+    ///
+    /// #  Returns
+    /// - `ChannelCount`: The number of channels (1 for mono, 2 for stereo).
+    pub fn channels(&self) -> ChannelCount {
         self.sample_channels
     }
 
-    pub fn sample(&self) -> &[f32] {
+    /// Returns a reference to the PCM sample data.
+    ///
+    /// # Returns
+    /// - `&[f32]`: A slice of PCM samples normalized between -1.0 and 1.0.
+    pub fn sample(&self) -> &PcmSamples {
         &self.sample
     }
 
@@ -121,23 +132,18 @@ impl MusicSample {
         }
     }
 
-    pub fn from_bytes(
-        data: &[u8],
-        sample_rate: SampleRate,
-        is_stereo: bool,
-    ) -> Result<Self>
-    {
+    pub fn from_bytes(data: &[u8], sample_rate: SampleRate, is_stereo: bool) -> Result<Self> {
         if sample_rate < Self::MIN_SAMPLE_RATE || sample_rate > Self::MAX_SAMPLE_RATE {
             return Err("Sample rate out of bounds".into());
         }
 
-        let format = MusicSample::determine_type(data);
+        let format = Self::determine_type(data);
         match format {
             MusicType::Mus => {
                 // TODO: need to get hands on WAD with MUS files to implement parser
                 Err("MUS format not supported yet".into())
             }
-            MusicType::Midi => Ok(MusicSample {
+            MusicType::Midi => Ok(Self {
                 sample_rate,
                 sample_channels: if is_stereo { 2 } else { 1 },
                 sample: midi_to_pcm(data, sample_rate, is_stereo),
@@ -147,16 +153,18 @@ impl MusicSample {
     }
 }
 
+/// Implement TryFrom<&[u8]> for MusicSample to allow easy conversion from byte slices.
+/// with default sample rate of 16000 Hz and mono output.
 impl TryFrom<&[u8]> for MusicSample {
     type Error = Error;
 
     fn try_from(data: &[u8]) -> Result<Self> {
-        MusicSample::from_bytes(data, Self::DEFAULT_SAMPLE_RATE, true)
+        Self::from_bytes(data, Self::DEFAULT_SAMPLE_RATE, false)
     }
 }
 
 /// Convert MIDI data to PCM samples using an embedded SoundFont.
-fn midi_to_pcm(mid: &[u8], sample_rate: SampleRate, is_stereo: bool) -> Vec<f32> {
+fn midi_to_pcm(mid: &[u8], sample_rate: SampleRate, is_stereo: bool) -> PcmSamples {
     let mut sf2 = File::open("../assets/microgm.sf2").unwrap();
     let sound_font = Arc::new(SoundFont::new(&mut sf2).unwrap());
 
@@ -174,27 +182,28 @@ fn midi_to_pcm(mid: &[u8], sample_rate: SampleRate, is_stereo: bool) -> Vec<f32>
 
     // The output buffer.
     let sample_count = (settings.sample_rate as f64 * midi_file.get_length()) as usize;
-    let mut left: Vec<f32> = vec![0_f32; sample_count];
-    let mut right: Vec<f32> = vec![0_f32; sample_count];
+    let mut left: PcmSamples = vec![0_f32; sample_count];
+    let mut right: PcmSamples = vec![0_f32; sample_count];
 
     // Render the waveform.
     sequencer.render(&mut left[..], &mut right[..]);
 
     // Write the waveform to the file.
-    let mut sample = Vec::with_capacity(left.len() + right.len());
     if is_stereo {
+        let mut sample = Vec::with_capacity(sample_count * 2);
         for t in 0..left.len() {
             sample.push(left[t]);
             sample.push(right[t]);
         }
+        sample
     } else {
+        let mut sample = Vec::with_capacity(sample_count);
         for t in 0..left.len() {
             // Mix down to mono
             sample.push((left[t] + right[t]) * 0.5);
         }
+        sample
     }
-
-    sample
 }
 
 #[cfg(test)]
