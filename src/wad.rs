@@ -39,7 +39,7 @@ impl WadIndex {
             file_type,
             tokens,
             lump_index,
-            data: data,
+            data,
         };
 
         Ok(wad_reader)
