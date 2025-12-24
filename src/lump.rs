@@ -94,8 +94,8 @@ impl LumpRef {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
     use super::*;
+    use std::rc::Rc;
 
     #[test]
     fn is_map_lump_identifies_map_lumps() {

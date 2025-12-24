@@ -11,6 +11,7 @@ fn main() {
     let palette = wad_rs::palette::Palette::try_from(palette_data).unwrap();
 
     let index = wad.get_lump_index();
+    let mut count = 0usize;
     for (name, lump_ref) in index.iter() {
         if lump_ref.end() > wad_data.len() {
             println!("Lump {} has invalid end offset, skipping", name);
@@ -23,6 +24,7 @@ fn main() {
         }
 
         if name.starts_with("S/") {
+            count += 1;
             let sprite = wad_rs::sprite::Sprite::new(&wad_data, lump_ref.start(), lump_ref.end()).unwrap();
             println!(
                 "Lump {name}:\n\tSize {} Bytes\n\tWidth: {}\n\tHeight: {}\n\tLeft Offset: {}\n\tTop Offset: {}",
@@ -42,4 +44,5 @@ fn main() {
             writer.write_image_data(&data).unwrap();
         }
     }
+    println!("Extracted {} sprites", count);
 }

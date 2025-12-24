@@ -3,7 +3,7 @@ use crate::header::{Header, MagicString};
 use crate::index::index_tokens;
 use crate::lump::LumpRef;
 use crate::map::MapIterator;
-use crate::tokenizer::{LumpToken, tokenize_lumps};
+use crate::tokenizer::{tokenize_lumps, LumpToken};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::rc::Rc;
