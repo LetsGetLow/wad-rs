@@ -1,6 +1,5 @@
 use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
-use std::fs::File;
-use std::io::Cursor;
+use std::io::{Cursor};
 use std::sync::Arc;
 
 type Error = Box<dyn std::error::Error>;
@@ -31,18 +30,36 @@ pub struct SoundSample {
 }
 
 impl SoundSample {
+    /// Returns the sample rate of the sound sample.
+    ///
+    /// # Returns
+    /// - `SampleRate`: The sample rate in Hz.
     pub fn sample_rate(&self) -> SampleRate {
         self.sample_rate
     }
 
+    /// Returns a reference to the PCM sample data.
+    ///
+    /// # Returns
+    /// - `&[f32]`: A slice of PCM samples normalized between -1.0 and 1.0.
     pub fn sample(&self) -> &PcmSamples {
         &self.samples
     }
 
+    /// Checks if the provided data slice starts with the expected magic number for a sound sample.
+    /// # Arguments
+    /// - `data`: A byte slice to check.
+    /// # Returns
+    /// - `bool`: `true` if the data starts with the sound sample magic number, `false` otherwise.
     pub fn is_sound_sample(data: &[u8]) -> bool {
         data.starts_with(&[0x03, 0x00])
     }
 
+    /// Creates a SoundSample from a byte slice following the specified format.
+    /// # Arguments
+    /// - `data`: A byte slice containing the sound sample data.
+    /// # Returns
+    /// - `Result<SoundSample>`: Ok(SoundSample) if successful, Err otherwise.
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         if data.len() < 8 {
             return Err("Data too short to contain valid sound sample header".into());
@@ -80,6 +97,7 @@ impl TryFrom<&[u8]> for SoundSample {
     }
 }
 
+/// Enum representing the type of music file.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MusicType {
     Mus,
@@ -124,7 +142,13 @@ impl MusicSample {
         &self.sample
     }
 
-    pub fn determine_type(data: &[u8]) -> MusicType {
+    /// Determines the type of music file based on its header bytes.
+    ///
+    /// # Arguments
+    /// - `data`: A byte slice containing the music file data.
+    /// # Returns
+    /// - `MusicType`: The determined music file type.
+    fn determine_type(data: &[u8]) -> MusicType {
         match data.get(..4) {
             Some(b"MUS\x1A") => MusicType::Mus,
             Some(b"MThd") => MusicType::Midi,
@@ -132,12 +156,23 @@ impl MusicSample {
         }
     }
 
-    pub fn from_bytes(data: &[u8], sample_rate: SampleRate, is_stereo: bool) -> Result<Self> {
+    /// Creates a MusicSample from a byte slice, sample rate, and channel configuration.
+    /// # Arguments
+    /// - `data`: A byte slice the music file data.
+    /// - `sample_rate`: The desired sample rate for the output PCM samples.
+    /// - `is_stereo`: A boolean indicating whether to output stereo samples.
+    /// # Returns
+    /// - `Result<MusicSample>`: Ok(MusicSample) if successful, Err otherwise.
+    pub fn from_bytes(
+        midi_data: &[u8],
+        sample_rate: SampleRate,
+        is_stereo: bool,
+    ) -> Result<Self> {
         if sample_rate < Self::MIN_SAMPLE_RATE || sample_rate > Self::MAX_SAMPLE_RATE {
             return Err("Sample rate out of bounds".into());
         }
 
-        let format = Self::determine_type(data);
+        let format = Self::determine_type(midi_data);
         match format {
             MusicType::Mus => {
                 // TODO: need to get hands on WAD with MUS files to implement parser
@@ -146,7 +181,7 @@ impl MusicSample {
             MusicType::Midi => Ok(Self {
                 sample_rate,
                 sample_channels: if is_stereo { 2 } else { 1 },
-                sample: midi_to_pcm(data, sample_rate, is_stereo),
+                sample: midi_to_pcm(midi_data, sample_rate, is_stereo),
             }),
             MusicType::Unknown => Err("Unknown music format".into()),
         }
@@ -164,13 +199,17 @@ impl TryFrom<&[u8]> for MusicSample {
 }
 
 /// Convert MIDI data to PCM samples using an embedded SoundFont.
-fn midi_to_pcm(mid: &[u8], sample_rate: SampleRate, is_stereo: bool) -> PcmSamples {
-    let mut sf2 = File::open("../assets/microgm.sf2").unwrap();
-    let sound_font = Arc::new(SoundFont::new(&mut sf2).unwrap());
+fn midi_to_pcm(
+    midi_data: &[u8],
+    sample_rate: SampleRate,
+    is_stereo: bool,
+) -> PcmSamples {
+    let sound_font_data = include_bytes!("../assets/microgm.sf2").to_vec();
+    let sound_font = Arc::new(SoundFont::new(&mut Cursor::new(sound_font_data)).unwrap());
 
     // Load the MIDI file.
-    let mut mid = Cursor::new(mid);
-    let midi_file = Arc::new(MidiFile::new(&mut mid).unwrap());
+    let midi_data = &mut Cursor::new(midi_data);
+    let midi_file = Arc::new(MidiFile::new(midi_data).unwrap());
 
     // Create the MIDI file sequencer.
     let settings = SynthesizerSettings::new(sample_rate as i32);
@@ -275,5 +314,51 @@ mod tests {
             MusicSample::determine_type(too_short_data),
             MusicType::Unknown
         );
+    }
+
+    #[test]
+    fn music_sample_conversion_fails_on_unsupported_format() {
+        let mus_data = b"MUS\x1Arest of the data";
+        let result = MusicSample::from_bytes(mus_data, 16000, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn music_sample_conversion_fails_on_unknown_format() {
+        let unknown_data = b"XXXXrest of the data";
+        let result = MusicSample::from_bytes(unknown_data, 16000, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn music_sample_conversion_fails_on_too_low_sample_rate() {
+        let midi_data = b"MThdrest of the data";
+        let result = MusicSample::from_bytes(midi_data, 8000, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn music_sample_conversion_fails_on_too_high_sample_rate() {
+        let midi_data = b"MThdrest of the data";
+        let result = MusicSample::from_bytes(midi_data, 96000, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn music_sample_converts_midi_to_mono() {
+        let midi_data = include_bytes!("../assets/midi/test.mid");
+        let music_sample = MusicSample::from_bytes(midi_data, 16000, false).unwrap();
+        assert_eq!(music_sample.sample_rate(), 16000);
+        assert_eq!(music_sample.channels(), 1);
+        assert!(!music_sample.sample().is_empty());
+    }
+
+    #[test]
+    fn music_sample_converts_midi_to_stereo() {
+        let midi_data = include_bytes!("../assets/midi/test.mid");
+        let music_sample = MusicSample::from_bytes(midi_data, 16000, true).unwrap();
+        assert_eq!(music_sample.sample_rate(), 16000);
+        assert_eq!(music_sample.channels(), 2);
+        assert!(!music_sample.sample().is_empty());
     }
 }

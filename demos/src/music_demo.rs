@@ -1,7 +1,7 @@
 extern crate core;
 
-use std::rc::Rc;
 use demos::AudioStream;
+use std::rc::Rc;
 use wad_rs::audio::MusicSample;
 
 fn main() {
@@ -34,12 +34,11 @@ fn main() {
         if name.starts_with("D_") {
             assert!(wad_data.len() >= 8);
             let data = wad_data[lump_ref.start()..lump_ref.end()].as_ref();
-            let sample = MusicSample::try_from(data).unwrap();
+            let sample = MusicSample::from_bytes(data, 44_100, true).unwrap();
             audio_stream.append_music(sample.clone());
             println!(
-                "Lump {name} : {} seconds (Midi size: {} bytes, pcm size: {} bytes)",
+                "Lump {name} : {} seconds (pcm size: {} bytes)",
                 sample.sample().len() as f32 / sample.sample_rate() as f32,
-                data.len(),
                 sample.sample().len() * size_of::<f32>()
             );
         }

@@ -19,12 +19,12 @@ impl AudioStream {
     }
 
     pub fn append_sound(&self, audio: SoundSample) {
-        let source = SamplesBuffer::new(1, audio.sample_rate(), audio.sample());
+        let source = SamplesBuffer::new(1, audio.sample_rate(), audio.sample() as &[f32]);
         self.sink.append(source);
     }
 
     pub fn append_music(&self, audio: MusicSample) {
-        let source = SamplesBuffer::new(audio.channels(), audio.sample_rate(), audio.sample());
+        let source = SamplesBuffer::new(audio.channels(), audio.sample_rate(), audio.sample() as &[f32]);
         self.sink.append(source);
     }
 
