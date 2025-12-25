@@ -1,5 +1,6 @@
+use once_cell::sync::Lazy;
 use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
-use std::io::{Cursor};
+use std::io::Cursor;
 use std::sync::Arc;
 
 type Error = Box<dyn std::error::Error>;
@@ -11,6 +12,10 @@ pub type ChannelCount = u16;
 
 pub type PcmSamples = Vec<f32>;
 
+const SOUNDFONT: Lazy<Arc<SoundFont>> = Lazy::new(|| {
+    let mut cursor = Cursor::new(include_bytes!("../assets/microgm.sf2"));
+    Arc::new(SoundFont::new(&mut cursor).expect("Failed to load SoundFont"))
+});
 /// A structure representing a sound sample with its sample rate and audio data.
 /// The audio data is stored as a vector of f32 samples normalized between -1.0 and 1.0.
 /// SoundSamples are typically mono audio samples.
@@ -114,10 +119,6 @@ pub struct MusicSample {
 }
 
 impl MusicSample {
-    const DEFAULT_SAMPLE_RATE: SampleRate = 16_000;
-    const MIN_SAMPLE_RATE: SampleRate = 16_000;
-    const MAX_SAMPLE_RATE: SampleRate = 44_100;
-
     /// Returns the sample rate of the music sample.
     ///
     /// # Returns
@@ -164,14 +165,10 @@ impl MusicSample {
     /// # Returns
     /// - `Result<MusicSample>`: Ok(MusicSample) if successful, Err otherwise.
     pub fn from_bytes(
+        synthesizer: &mut MidiSynthesizer,
         midi_data: &[u8],
-        sample_rate: SampleRate,
         is_stereo: bool,
     ) -> Result<Self> {
-        if sample_rate < Self::MIN_SAMPLE_RATE || sample_rate > Self::MAX_SAMPLE_RATE {
-            return Err("Sample rate out of bounds".into());
-        }
-
         let format = Self::determine_type(midi_data);
         match format {
             MusicType::Mus => {
@@ -179,9 +176,9 @@ impl MusicSample {
                 Err("MUS format not supported yet".into())
             }
             MusicType::Midi => Ok(Self {
-                sample_rate,
+                sample_rate: synthesizer.get_sample_rate(),
                 sample_channels: if is_stereo { 2 } else { 1 },
-                sample: midi_to_pcm(midi_data, sample_rate, is_stereo),
+                sample: synthesizer.synth(midi_data, is_stereo),
             }),
             MusicType::Unknown => Err("Unknown music format".into()),
         }
@@ -194,26 +191,93 @@ impl TryFrom<&[u8]> for MusicSample {
     type Error = Error;
 
     fn try_from(data: &[u8]) -> Result<Self> {
-        Self::from_bytes(data, Self::DEFAULT_SAMPLE_RATE, false)
+        let mut synthesizer = MidiSynthesizer::new(
+            include_bytes!("../assets/microgm.sf2"),
+            MidiSynthesizer::DEFAULT_SAMPLE_RATE,
+        )?;
+        Self::from_bytes(&mut synthesizer, data, false)
+    }
+}
+
+pub struct MidiSynthesizer {
+    sample_rate: SampleRate,
+    sequencer: MidiFileSequencer,
+}
+
+impl MidiSynthesizer {
+    const DEFAULT_SAMPLE_RATE: SampleRate = 16_000;
+    const MIN_SAMPLE_RATE: SampleRate = 16_000;
+    const MAX_SAMPLE_RATE: SampleRate = 44_100;
+
+    pub fn new(sound_font: &[u8], sample_rate: SampleRate) -> Result<Self> {
+        if sample_rate < Self::MIN_SAMPLE_RATE || sample_rate > Self::MAX_SAMPLE_RATE {
+            return Err("Sample rate out of bounds".into());
+        }
+        let sound_font = {
+            let mut cursor = Cursor::new(sound_font);
+            Arc::new(SoundFont::new(&mut cursor)?)
+        };
+
+        let sequencer = {
+            // Create the MIDI file sequencer.
+            let settings = SynthesizerSettings::new(sample_rate as i32);
+            let synthesizer = Synthesizer::new(&sound_font, &settings)?;
+            MidiFileSequencer::new(synthesizer)
+        };
+
+        Ok(Self {
+            sample_rate,
+            sequencer,
+        })
+    }
+
+    pub fn get_sample_rate(&self) -> SampleRate {
+        self.sample_rate
+    }
+
+    /// synth MIDI data to PCM samples
+    pub fn synth(&mut self, midi_data: &[u8], is_stereo: bool) -> PcmSamples {
+        let midi_data = &mut Cursor::new(midi_data);
+        let midi_file = Arc::new(MidiFile::new(midi_data).unwrap());
+
+        // initialize the output buffer.
+        let sample_count = (self.sample_rate as f64 * midi_file.get_length()) as usize;
+        let mut left: PcmSamples = vec![0_f32; sample_count];
+        let mut right: PcmSamples = vec![0_f32; sample_count];
+
+        // Play the MIDI file.
+        self.sequencer.play(&midi_file, false);
+        // Render the waveform.
+        self.sequencer.render(&mut left[..], &mut right[..]);
+
+        // Write the waveform to final buffer.
+        if is_stereo {
+            let mut sample = Vec::with_capacity(sample_count * 2);
+            for t in 0..left.len() {
+                sample.push(left[t]);
+                sample.push(right[t]);
+            }
+            sample
+        } else {
+            let mut sample = Vec::with_capacity(sample_count);
+            for t in 0..left.len() {
+                // Mix down to mono
+                sample.push((left[t] + right[t]) * 0.5);
+            }
+            sample
+        }
     }
 }
 
 /// Convert MIDI data to PCM samples using an embedded SoundFont.
-fn midi_to_pcm(
-    midi_data: &[u8],
-    sample_rate: SampleRate,
-    is_stereo: bool,
-) -> PcmSamples {
-    let sound_font_data = include_bytes!("../assets/microgm.sf2").to_vec();
-    let sound_font = Arc::new(SoundFont::new(&mut Cursor::new(sound_font_data)).unwrap());
-
+fn midi_to_pcm(midi_data: &[u8], sample_rate: SampleRate, is_stereo: bool) -> PcmSamples {
     // Load the MIDI file.
     let midi_data = &mut Cursor::new(midi_data);
     let midi_file = Arc::new(MidiFile::new(midi_data).unwrap());
 
     // Create the MIDI file sequencer.
     let settings = SynthesizerSettings::new(sample_rate as i32);
-    let synthesizer = Synthesizer::new(&sound_font, &settings).unwrap();
+    let synthesizer = Synthesizer::new(&SOUNDFONT, &settings).unwrap();
     let mut sequencer = MidiFileSequencer::new(synthesizer);
 
     // Play the MIDI file.
@@ -319,35 +383,25 @@ mod tests {
     #[test]
     fn music_sample_conversion_fails_on_unsupported_format() {
         let mus_data = b"MUS\x1Arest of the data";
-        let result = MusicSample::from_bytes(mus_data, 16000, false);
+        let mut synthesizer =
+            MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 44_100).unwrap();
+        let result = MusicSample::from_bytes(&mut synthesizer, mus_data, false);
         assert!(result.is_err());
     }
 
     #[test]
     fn music_sample_conversion_fails_on_unknown_format() {
         let unknown_data = b"XXXXrest of the data";
-        let result = MusicSample::from_bytes(unknown_data, 16000, false);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn music_sample_conversion_fails_on_too_low_sample_rate() {
-        let midi_data = b"MThdrest of the data";
-        let result = MusicSample::from_bytes(midi_data, 8000, false);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn music_sample_conversion_fails_on_too_high_sample_rate() {
-        let midi_data = b"MThdrest of the data";
-        let result = MusicSample::from_bytes(midi_data, 96000, false);
+        let mut synthesizer =
+            MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 44_100).unwrap();
+        let result = MusicSample::from_bytes(&mut synthesizer, unknown_data, false);
         assert!(result.is_err());
     }
 
     #[test]
     fn music_sample_converts_midi_to_mono() {
-        let midi_data = include_bytes!("../assets/midi/test.mid");
-        let music_sample = MusicSample::from_bytes(midi_data, 16000, false).unwrap();
+        let midi_data = include_bytes!("../assets/midi/test.mid").as_slice();
+        let music_sample = MusicSample::try_from(midi_data).unwrap();
         assert_eq!(music_sample.sample_rate(), 16000);
         assert_eq!(music_sample.channels(), 1);
         assert!(!music_sample.sample().is_empty());
@@ -355,10 +409,25 @@ mod tests {
 
     #[test]
     fn music_sample_converts_midi_to_stereo() {
-        let midi_data = include_bytes!("../assets/midi/test.mid");
-        let music_sample = MusicSample::from_bytes(midi_data, 16000, true).unwrap();
-        assert_eq!(music_sample.sample_rate(), 16000);
+        let midi_data = include_bytes!("../assets/midi/test.mid").as_slice();
+        let mut synthesizer =
+            MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 44_100).unwrap();
+        let music_sample = MusicSample::from_bytes(&mut synthesizer, midi_data, true).unwrap();
+        assert_eq!(music_sample.sample_rate(), 44_100);
         assert_eq!(music_sample.channels(), 2);
         assert!(!music_sample.sample().is_empty());
+    }
+
+    #[test]
+    fn midi_synthesizer_creation_fails_on_too_low_sample_rate() {
+        let midi_data = b"MThdrest of the data";
+        let result = MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 8_000);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn midi_synthesizer_creation_fails_on_too_high_sample_rate() {
+        let result = MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 100_000);
+        assert!(result.is_err());
     }
 }

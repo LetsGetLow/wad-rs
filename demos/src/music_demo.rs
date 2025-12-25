@@ -2,7 +2,7 @@ extern crate core;
 
 use demos::AudioStream;
 use std::rc::Rc;
-use wad_rs::audio::MusicSample;
+use wad_rs::audio::{MidiSynthesizer, MusicSample};
 
 fn main() {
     let wad_data = include_bytes!("../../assets/wad/freedoom1.wad").to_vec();
@@ -20,6 +20,10 @@ fn main() {
         }
     };
 
+
+    let mut synthesizer =
+        MidiSynthesizer::new(include_bytes!("../../assets/microgm.sf2"), 16_000).unwrap();
+
     for (name, lump_ref) in index.iter() {
         if lump_ref.end() > wad_data.len() {
             println!("Lump {} has invalid end offset, skipping", name);
@@ -34,7 +38,7 @@ fn main() {
         if name.starts_with("D_") {
             assert!(wad_data.len() >= 8);
             let data = wad_data[lump_ref.start()..lump_ref.end()].as_ref();
-            let sample = MusicSample::from_bytes(data, 44_100, true).unwrap();
+            let sample = MusicSample::from_bytes(&mut synthesizer, data, true).unwrap();
             audio_stream.append_music(sample.clone());
             println!(
                 "Lump {name} : {} seconds (pcm size: {} bytes)",
