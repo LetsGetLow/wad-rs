@@ -1,4 +1,3 @@
-use once_cell::sync::Lazy;
 use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
 use std::io::Cursor;
 use std::sync::Arc;
@@ -12,10 +11,6 @@ pub type ChannelCount = u16;
 
 pub type PcmSamples = Vec<f32>;
 
-const SOUNDFONT: Lazy<Arc<SoundFont>> = Lazy::new(|| {
-    let mut cursor = Cursor::new(include_bytes!("../assets/microgm.sf2"));
-    Arc::new(SoundFont::new(&mut cursor).expect("Failed to load SoundFont"))
-});
 /// A structure representing a sound sample with its sample rate and audio data.
 /// The audio data is stored as a vector of f32 samples normalized between -1.0 and 1.0.
 /// SoundSamples are typically mono audio samples.
@@ -252,60 +247,27 @@ impl MidiSynthesizer {
 
         // Write the waveform to final buffer.
         if is_stereo {
-            let mut sample = Vec::with_capacity(sample_count * 2);
-            for t in 0..left.len() {
-                sample.push(left[t]);
-                sample.push(right[t]);
-            }
-            sample
+            Self::combine_channels_to_stereo(&left, &right)
         } else {
-            let mut sample = Vec::with_capacity(sample_count);
-            for t in 0..left.len() {
-                // Mix down to mono
-                sample.push((left[t] + right[t]) * 0.5);
-            }
-            sample
+            Self::combine_channels_to_mono(&left, &right)
         }
     }
-}
 
-/// Convert MIDI data to PCM samples using an embedded SoundFont.
-fn midi_to_pcm(midi_data: &[u8], sample_rate: SampleRate, is_stereo: bool) -> PcmSamples {
-    // Load the MIDI file.
-    let midi_data = &mut Cursor::new(midi_data);
-    let midi_file = Arc::new(MidiFile::new(midi_data).unwrap());
-
-    // Create the MIDI file sequencer.
-    let settings = SynthesizerSettings::new(sample_rate as i32);
-    let synthesizer = Synthesizer::new(&SOUNDFONT, &settings).unwrap();
-    let mut sequencer = MidiFileSequencer::new(synthesizer);
-
-    // Play the MIDI file.
-    sequencer.play(&midi_file, false);
-
-    // The output buffer.
-    let sample_count = (settings.sample_rate as f64 * midi_file.get_length()) as usize;
-    let mut left: PcmSamples = vec![0_f32; sample_count];
-    let mut right: PcmSamples = vec![0_f32; sample_count];
-
-    // Render the waveform.
-    sequencer.render(&mut left[..], &mut right[..]);
-
-    // Write the waveform to the file.
-    if is_stereo {
-        let mut sample = Vec::with_capacity(sample_count * 2);
-        for t in 0..left.len() {
-            sample.push(left[t]);
-            sample.push(right[t]);
+    fn combine_channels_to_stereo(left: &PcmSamples, right: &PcmSamples) -> PcmSamples {
+        let mut stereo_samples = Vec::with_capacity(left.len() * 2);
+        for i in 0..left.len() {
+            stereo_samples.push(left[i]);
+            stereo_samples.push(right[i]);
         }
-        sample
-    } else {
-        let mut sample = Vec::with_capacity(sample_count);
-        for t in 0..left.len() {
-            // Mix down to mono
-            sample.push((left[t] + right[t]) * 0.5);
+        stereo_samples
+    }
+
+    fn combine_channels_to_mono(left: &PcmSamples, right: &PcmSamples) -> PcmSamples {
+        let mut mono_samples = Vec::with_capacity(left.len());
+        for i in 0..left.len() {
+            mono_samples.push((left[i] + right[i]) * 0.5);
         }
-        sample
+        mono_samples
     }
 }
 
@@ -420,7 +382,6 @@ mod tests {
 
     #[test]
     fn midi_synthesizer_creation_fails_on_too_low_sample_rate() {
-        let midi_data = b"MThdrest of the data";
         let result = MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 8_000);
         assert!(result.is_err());
     }

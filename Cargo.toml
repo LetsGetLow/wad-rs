@@ -13,10 +13,10 @@ criterion = "0.8.1"
 png = "0.18.0"
 rodio = "0.21.1"
 rustysynth = "1.3.6"
+wide = "1.1.1"
 
 [dependencies]
 rustysynth.workspace = true
-once_cell = "1.21.3"
 
 [dev-dependencies]
 criterion.workspace = true

@@ -22,7 +22,7 @@ fn main() {
 
 
     let mut synthesizer =
-        MidiSynthesizer::new(include_bytes!("../../assets/microgm.sf2"), 16_000).unwrap();
+        MidiSynthesizer::new(include_bytes!("../../assets/microgm.sf2"), 44_100).unwrap();
 
     for (name, lump_ref) in index.iter() {
         if lump_ref.end() > wad_data.len() {
