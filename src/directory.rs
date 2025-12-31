@@ -55,7 +55,7 @@ pub struct DirectoryIterator {
 
 impl DirectoryIterator {
     /// Seeds test data for the iterator not for production use
-    pub(crate) fn seed_test_data(data: Rc<[u8]>, start: usize, end: usize) -> Self {
+    pub(crate) fn new(data: Rc<[u8]>, start: usize, end: usize) -> Self {
         Self {
             current: start,
             end,

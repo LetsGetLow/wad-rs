@@ -8,7 +8,7 @@ pub mod tokenizer;
 pub mod index;
 pub mod map;
 pub mod audio;
-pub mod palette;
+pub mod graphics;
 pub mod sprite;
 
 pub use wad::WadIndex;

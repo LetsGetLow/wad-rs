@@ -63,7 +63,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, b'_', b'E', b'N', b'D', 0, 0, 0, 0,
         ]);
 
-        let dir_iterator = DirectoryIterator::seed_test_data(Rc::clone(&data), 0, 32);
+        let dir_iterator = DirectoryIterator::new(Rc::clone(&data), 0, 32);
         let tokens = tokenize_lumps(dir_iterator, &data).unwrap();
 
         assert_eq!(tokens.len(), 2);
@@ -85,7 +85,7 @@ mod tests {
             3, 0, 0, 0, 2, 0, 0, 0, b'L', b'U', b'M', b'P', b'2', 0, 0, 0,
         ]);
 
-        let dir_iterator = DirectoryIterator::seed_test_data(Rc::clone(&data), 0, 32);
+        let dir_iterator = DirectoryIterator::new(Rc::clone(&data), 0, 32);
         let tokens = tokenize_lumps(dir_iterator, &data).unwrap();
 
         assert_eq!(tokens.len(), 2);
@@ -115,7 +115,7 @@ mod tests {
             // E1M2 marker Doom style
             0, 0, 0, 0, 0, 0, 0, 0, b'E', b'1', b'M', b'2', 0, 0, 0, 0,
         ]);
-        let dir_iterator = DirectoryIterator::seed_test_data(Rc::clone(&data), 0, 32);
+        let dir_iterator = DirectoryIterator::new(Rc::clone(&data), 0, 32);
         let tokens = tokenize_lumps(dir_iterator, &data).unwrap();
 
         assert_eq!(tokens.len(), 2);

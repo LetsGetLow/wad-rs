@@ -8,7 +8,7 @@ fn main() {
 
     let palette_lump = wad.get_lump(Vec::new(), "PLAYPAL").unwrap();
     let palette_data = &wad_data[palette_lump.start()..palette_lump.end()];
-    let palette = wad_rs::palette::Palette::try_from(palette_data).unwrap();
+    let palette = wad_rs::graphics::Palette::try_from(palette_data).unwrap();
 
     let index = wad.get_lump_index();
     let mut count = 0usize;
@@ -36,7 +36,7 @@ fn main() {
             );
 
             let file = std::fs::File::create(format!("assets/img/{}.png", name.replace("/", "_"))).unwrap();
-            let data = sprite.rgba_image(&wad_data, &palette).unwrap();
+            let data = sprite.rgba_pixel_buffer(&wad_data, &palette).unwrap();
             let mut encoder = png::Encoder::new(file, sprite.width() as u32, sprite.height() as u32);
             encoder.set_color(png::ColorType::Rgba);
             encoder.set_depth(png::BitDepth::Eight);

@@ -1,11 +1,10 @@
-use crate::palette::Palette;
+use crate::graphics::Palette;
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 const HEADER_SIZE: usize = 8;
 
-
-/// Header eines Doom-Patch-/Sprite-Lumps
+/// Header of a Doom-Patch-/Sprite-Lump
 #[derive(Debug, Clone, Copy)]
 pub struct SpriteHeader {
     pub width: u16,
@@ -34,35 +33,53 @@ impl SpriteHeader {
     }
 }
 
-/// Repräsentiert einen Doom-Sprite/Patch-Lump.
+/// Represents a Doom sprite/patch lump.
 ///
-/// Hält einen Verweis auf die zugrunde liegenden WAD-Daten über `Rc<[u8]>`
-/// und speichert lediglich Offsets/Metadaten, aber keine kopierten Pixel.
+/// Contains metadata and methods to extract the sprite image data and turn it into
+/// an RGBA pixel buffer.
+///
+/// # Structure of a Sprite Lump
+/// A sprite lump starts with an 8-byte header:
+/// - Bytes 0-1: Width (u16, little-endian)
+/// - Bytes 2-3: Height (u16, little-endian)
+/// - Bytes 4-5: Left offset (i16, little-endian)
+/// - Bytes 6-7: Top offset (i16, little-endian)
+/// Following the header is a column offset table, which contains
+/// 4-byte little-endian offsets for each column of the sprite image data.
+/// Each column consists of a series of "posts", where each post has:
+/// - 1 byte: Top delta (y offset where the post starts)
+/// - 1 byte: Length of the post (number of pixels)
+/// - 1 byte: Dummy byte (unused)
+/// - N bytes: Pixel data (palette indices)
+/// - 1 byte: 0xFF (end of column marker)
+///
 #[derive(Debug, Clone)]
 pub struct Sprite {
+    // Offsets within the WAD data slice
     lump_start: usize,
+    // End offset within the WAD data slice
     lump_end: usize,
     header: SpriteHeader,
 }
 
 impl Sprite {
-    /// Erzeugt einen `Sprite` aus dem kompletten Lumpslice in einem `Rc<[u8]>`.
+    /// Creates a `Sprite` from the complete lump slice.
     ///
-    /// Erwartet, dass `rc_data` genau den Sprite-Lump enthält (kein globaler WAD-Puffer).
-    pub fn new(data: &[u8],  start: usize, end: usize) -> Result<Self> {
+    /// # Arguments
+    /// - `data`: The complete WAD data slice.
+    /// - `start`: The start offset of the sprite lump within `data`.
+    /// - `end`: The end offset of the sprite lump within `data`.
+    /// # Returns
+    /// - `Ok(Sprite)` if the sprite lump is valid.
+    /// - `Err` if the sprite lump is invalid or out of bounds.
+    pub fn new(data: &[u8], start: usize, end: usize) -> Result<Self> {
         if start >= end || end > data.len() {
             return Err("sprite lump range out of bounds".into());
         }
 
         let lump = &data[start..end];
         let header = SpriteHeader::from_bytes(lump)?;
-        let column_table_bytes = (header.width as usize)
-            .checked_mul(4)
-            .ok_or("column table size overflow")?;
-
-        if lump.len() < HEADER_SIZE + column_table_bytes {
-            return Err("sprite lump too small for column table".into());
-        }
+        Self::check_size(header.width as usize, lump)?;
 
         Ok(Sprite {
             lump_start: start,
@@ -96,28 +113,25 @@ impl Sprite {
         self.lump_end - self.lump_start
     }
 
-    pub fn image_data<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+    pub fn extract_lump_data<'a>(&self, data: &'a [u8]) -> &'a [u8] {
         &data[self.lump_start..self.lump_end]
     }
 
-    pub fn rgba_image(&self, data: &[u8], palette: &Palette) -> Result<Vec<u8>> {
+    pub fn rgba_pixel_buffer(&self, data: &[u8], palette: &Palette) -> Result<Vec<u8>> {
         let w = self.width() as usize;
         let h = self.height() as usize;
 
+        // sanity check
         if w == 0 || h == 0 {
             return Err("sprite has zero width or height".into());
         }
 
-        let column_table_bytes = w
-            .checked_mul(4)
-            .ok_or("column table size overflow")?;
+        let lump = self.extract_lump_data(data);
 
-        let lump = self.image_data(data);
-        if lump.len() < HEADER_SIZE + column_table_bytes {
-            return Err("sprite lump too small for column table".into());
-        }
+        Self::check_size(w, lump)?;
 
-        let mut rgba = vec![0u8; w * h * 4];
+        // init RGBA pixel buffer with transparent pixels
+        let mut pixel_buffer = vec![0u8; w * h * 4];
 
         for row in 0..w {
             let offset_index = HEADER_SIZE + row * 4;
@@ -134,23 +148,21 @@ impl Sprite {
 
             let mut cursor = column_offset;
             loop {
-                if cursor >= lump.len() {
-                    return Err("unexpected end of column data".into());
-                }
-
-                let topdelta = lump[cursor];
+                let topdelta = lump
+                    .get(cursor)
+                    .copied()
+                    .ok_or("unexpected end of post header")?;
                 cursor += 1;
 
+                // 0xFF marks the end of the column
                 if topdelta == 0xFF {
                     break;
                 }
 
-                if cursor + 1 >= lump.len() {
-                    return Err("unexpected end of post header".into());
-                }
-
-                let length = lump[cursor] as usize;
-                let _dummy = lump[cursor + 1];
+                let length = lump
+                    .get(cursor)
+                    .copied()
+                    .ok_or("unexpected end of post length")? as usize;
                 cursor += 2;
 
                 let data_start = cursor;
@@ -171,21 +183,31 @@ impl Sprite {
                     return Err("post writes beyond sprite height".into());
                 }
 
-                for (dy, &index) in lump[data_start..data_end].iter().enumerate() {
+                let pixel_data = &lump[data_start..data_end];
+                for (dy, &index) in pixel_data.iter().enumerate() {
                     let y = row_start + dy;
-                    let dest = (y * w + row) * 4;
-                    if let Some(color) = palette.get_rgba(index as usize) {
-                        rgba[dest..dest + 4].copy_from_slice(&color);
-                    } else {
-                        return Err("palette index out of bounds".into());
-                    }
+                    let buffer_pos = (y * w + row) * 4;
+                    pixel_buffer[buffer_pos..buffer_pos + 4].copy_from_slice(
+                        palette
+                            .get_rgba(index as usize)
+                            .ok_or("palette index out of bounds")?
+                            .as_ref(),
+                    );
                 }
-
                 cursor = data_end + 1;
             }
         }
 
-        Ok(rgba)
+        Ok(pixel_buffer)
+    }
+
+    fn check_size(w: usize, lump: &[u8]) -> Result<()> {
+        let column_table_bytes = w.checked_mul(4).ok_or("column table size overflow")?;
+        if lump.len() < HEADER_SIZE + column_table_bytes {
+            Err("sprite lump too small for column table".into())
+        } else {
+            Ok(())
+        }
     }
 }
 

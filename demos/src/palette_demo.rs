@@ -6,7 +6,7 @@ fn main() {
 
     let palette_lump = wad.get_lump(Vec::new(), "PLAYPAL").unwrap();
     let palette_data = &wad_data[palette_lump.start()..palette_lump.end()];
-    let palette = wad_rs::palette::Palette::try_from(palette_data).unwrap();
+    let palette = wad_rs::graphics::Palette::try_from(palette_data).unwrap();
     for i in 0..256 {
         let rgb = palette.get_rgb(i).unwrap();
         let rgba = palette.get_rgba(i).unwrap();
