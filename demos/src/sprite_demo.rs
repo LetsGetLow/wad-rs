@@ -1,10 +1,7 @@
-use std::rc::Rc;
-
 fn main() {
-    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad").to_vec();
-    let wad_data = Rc::from(wad_data);
+    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad");
     let wad =
-        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), Rc::clone(&wad_data)).unwrap();
+        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data).unwrap();
 
     let palette_lump = wad.get_lump(Vec::new(), "PLAYPAL").unwrap();
     let palette_data = &wad_data[palette_lump.start()..palette_lump.end()];
@@ -25,7 +22,7 @@ fn main() {
 
         if name.starts_with("S/") {
             count += 1;
-            let sprite = wad_rs::sprite::Sprite::new(&wad_data, lump_ref.start(), lump_ref.end()).unwrap();
+            let sprite = wad_rs::sprite::Sprite::new(wad_data, lump_ref.start(), lump_ref.end()).unwrap();
             println!(
                 "Lump {name}:\n\tSize {} Bytes\n\tWidth: {}\n\tHeight: {}\n\tLeft Offset: {}\n\tTop Offset: {}",
                 sprite.size(),
@@ -36,7 +33,7 @@ fn main() {
             );
 
             let file = std::fs::File::create(format!("assets/img/{}.png", name.replace("/", "_"))).unwrap();
-            let data = sprite.rgba_pixel_buffer(&wad_data, &palette).unwrap();
+            let data = sprite.rgba_pixel_buffer(wad_data, &palette).unwrap();
             let mut encoder = png::Encoder::new(file, sprite.width() as u32, sprite.height() as u32);
             encoder.set_color(png::ColorType::Rgba);
             encoder.set_depth(png::BitDepth::Eight);

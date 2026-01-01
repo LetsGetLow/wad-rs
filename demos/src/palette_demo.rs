@@ -1,8 +1,7 @@
 fn main() {
-    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad").to_vec();
-    let wad_data = std::rc::Rc::from(wad_data);
+    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad");
     let wad =
-        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), std::rc::Rc::clone(&wad_data)).unwrap();
+        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data).unwrap();
 
     let palette_lump = wad.get_lump(Vec::new(), "PLAYPAL").unwrap();
     let palette_data = &wad_data[palette_lump.start()..palette_lump.end()];

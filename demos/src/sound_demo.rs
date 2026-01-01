@@ -1,11 +1,9 @@
-use std::rc::Rc;
 use demos::AudioStream;
 
 fn main() {
-    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad").to_vec();
-    let wad_data = Rc::from(wad_data);
+    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad");
     let wad =
-        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), Rc::clone(&wad_data)).unwrap();
+        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data).unwrap();
 
     let index = wad.get_lump_index();
     let audio_stream = AudioStream::new();

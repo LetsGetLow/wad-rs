@@ -3,11 +3,12 @@ use std::slice::from_raw_parts;
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
-const LUMP_NAME_LENGTH: usize = 8;
+pub const LUMP_NAME_LENGTH: usize = 8;
+pub const LUMP_ENTRY_LENGTH: usize = 16;
 
-pub fn is_map_lump(name: &String) -> bool {
+pub fn is_map_lump(name: &str) -> bool {
     matches!(
-        name.as_str(),
+        name,
         "THINGS"
             | "LINEDEFS"
             | "SIDEDEFS"
@@ -55,19 +56,22 @@ impl LumpRef {
         self.name_offset
     }
 
-    pub fn name(&self, data: &[u8]) -> Result<String> {
+    pub fn name<'a>(&self, data: &'a [u8]) -> Result<&'a str> {
         if data.len() < self.name_offset + LUMP_NAME_LENGTH {
             return Err("Data too small to contain lump name".into());
         }
         unsafe {
             let ptr = data.as_ptr().add(self.name_offset);
-            for i in 0..LUMP_NAME_LENGTH {
-                if *ptr.add(i) == 0 {
-                    let b = from_raw_parts(ptr, i);
-                    return Ok(String::from_utf8_lossy(b).to_string());
+            let name = {
+                // Safety: We are reading exactly 8 bytes from a valid slice of data we checked above
+                // the overall data length is at least directory_end
+                unsafe {
+                    let name_bytes: &[u8; 8] = &*(ptr as *const [u8; 8]);
+                    std::str::from_utf8_unchecked(name_bytes).trim_end_matches('\0')
                 }
-            }
-            Ok(String::from_utf8_lossy(from_raw_parts(ptr, LUMP_NAME_LENGTH)).to_string())
+            };
+
+            Ok(name)
         }
     }
 
