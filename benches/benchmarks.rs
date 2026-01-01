@@ -71,7 +71,7 @@ fn bench_converting_audio(b: &mut Criterion) {
 
 criterion_group!(
     benches,
-    // bench_wad_from_bytes,
+    bench_wad_from_bytes,
     // bench_indexing_lumps,
     bench_converting_audio,
 );
