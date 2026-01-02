@@ -23,19 +23,9 @@ fn main() {
         MidiSynthesizer::new(include_bytes!("../../assets/microgm.sf2"), 44_100).unwrap();
 
     for (name, lump_ref) in index.iter() {
-        if lump_ref.end() > wad_data.len() {
-            println!("Lump {} has invalid end offset, skipping", name);
-            continue;
-        }
-
-        if lump_ref.start() > wad_data.len() {
-            println!("Lump {} has invalid start offset, skipping", name);
-            continue;
-        }
-
         if name.starts_with("D_") {
             assert!(wad_data.len() >= 8);
-            let data = wad_data[lump_ref.start()..lump_ref.end()].as_ref();
+            let data = lump_ref.data();
             let sample = MusicSample::from_bytes(&mut synthesizer, data, true).unwrap();
             audio_stream.append_music(sample.clone());
             println!(

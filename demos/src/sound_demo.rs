@@ -16,19 +16,9 @@ fn main() {
     };
 
     for (name, lump_ref) in index.iter() {
-        if lump_ref.end() > wad_data.len() {
-            println!("Lump {} has invalid end offset, skipping", name);
-            continue;
-        }
-
-        if lump_ref.start() > wad_data.len() {
-            println!("Lump {} has invalid start offset, skipping", name);
-            continue;
-        }
-
         if name.starts_with("DS") {
             assert!(wad_data.len() >= 8);
-            let data = wad_data[lump_ref.start()..lump_ref.end()].as_ref();
+            let data = lump_ref.data();
             let sample = wad_rs::audio::SoundSample::try_from(data).unwrap();
             audio_stream.append_sound(sample);
             println!("Lump {name} appended to audio stream");

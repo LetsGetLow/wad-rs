@@ -3,17 +3,17 @@ use crate::tokenizer::{LumpToken, TokenIterator};
 
 pub struct Map<'a> {
     name: &'a str,
-    things: Option<LumpRef>,
-    linedefs: Option<LumpRef>,
-    sidedefs: Option<LumpRef>,
-    vertexes: Option<LumpRef>,
-    sectors: Option<LumpRef>,
-    segs: Option<LumpRef>,
-    ssectors: Option<LumpRef>,
-    nodes: Option<LumpRef>,
-    rejects: Option<LumpRef>,
-    blockmap: Option<LumpRef>,
-    behavior: Option<LumpRef>, // only for Heretic/Hexen
+    things: Option<LumpRef<'a>>,
+    linedefs: Option<LumpRef<'a>>,
+    sidedefs: Option<LumpRef<'a>>,
+    vertexes: Option<LumpRef<'a>>,
+    sectors: Option<LumpRef<'a>>,
+    segs: Option<LumpRef<'a>>,
+    ssectors: Option<LumpRef<'a>>,
+    nodes: Option<LumpRef<'a>>,
+    rejects: Option<LumpRef<'a>>,
+    blockmap: Option<LumpRef<'a>>,
+    behavior: Option<LumpRef<'a>>, // only for Heretic/Hexen
 }
 
 impl<'a> Map<'a> {

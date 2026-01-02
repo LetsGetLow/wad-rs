@@ -57,7 +57,7 @@ fn bench_converting_audio(b: &mut Criterion) {
     group.bench_function("convert_sounds", |b| {
         b.iter(|| {
             for lump_ref in &filtered_lumps {
-                let data = &wad_data[lump_ref.start()..lump_ref.end()];
+                let data = lump_ref.data();
                 let _sample = wad_rs::audio::SoundSample::try_from(data.as_ref()).unwrap();
             }
         })

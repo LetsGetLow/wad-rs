@@ -57,10 +57,10 @@ fn skip_map_lumps(tokens: &mut Peekable<TokenIterator>) {
     }
 }
 
-fn index_namespace(
-    lumps: &mut HashMap<String, LumpRef>,
+fn index_namespace<'a>(
+    lumps: &mut HashMap<String, LumpRef<'a>>,
     namespace: &String,
-    tokens: &mut Peekable<TokenIterator>,
+    tokens: &mut Peekable<TokenIterator<'a>>,
 ) -> Result<()> {
     tokens.next();
     while let Some(token) = tokens.peek() {

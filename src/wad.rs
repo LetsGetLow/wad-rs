@@ -15,7 +15,7 @@ pub struct WadIndex {
     name: String,
     data: &'static [u8],
     file_type: MagicString,
-    lump_index: HashMap<String, LumpRef>,
+    lump_index: HashMap<String, LumpRef<'static>>,
 }
 
 impl WadIndex {
@@ -55,9 +55,7 @@ impl WadIndex {
 
     pub fn get_sound_sample(&self, name: &str) -> Result<Option<SoundSample>> {
         if let Some(lump_ref) = self.lump_index.get(name) {
-            let start = lump_ref.start();
-            let end = start + lump_ref.end();
-            let lump_data = &self.data[start..end];
+            let lump_data = lump_ref.data();
             Ok(Some(SoundSample::try_from(lump_data)?))
         } else {
             Ok(None)

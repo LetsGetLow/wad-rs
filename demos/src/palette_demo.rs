@@ -4,7 +4,7 @@ fn main() {
         wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data).unwrap();
 
     let palette_lump = wad.get_lump(Vec::new(), "PLAYPAL").unwrap();
-    let palette_data = &wad_data[palette_lump.start()..palette_lump.end()];
+    let palette_data = palette_lump.data();
     let palette = wad_rs::graphics::Palette::try_from(palette_data).unwrap();
     for i in 0..256 {
         let rgb = palette.get_rgb(i).unwrap();

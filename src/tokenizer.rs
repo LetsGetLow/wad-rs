@@ -1,5 +1,5 @@
 use crate::header::Header;
-use crate::lump::{LumpRef, LUMP_ENTRY_LENGTH};
+use crate::lump::{LUMP_ENTRY_LENGTH, LumpRef};
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
@@ -9,7 +9,7 @@ pub enum LumpToken<'a> {
     MarkerStart(&'a str),
     MarkerEnd(&'a str),
     MapMarker(&'a str),
-    Lump(&'a str, LumpRef),
+    Lump(&'a str, LumpRef<'a>),
 }
 
 impl LumpToken<'_> {
@@ -20,64 +20,6 @@ impl LumpToken<'_> {
     pub fn is_end_marker(name: &str) -> bool {
         name.ends_with("_END")
     }
-}
-
-pub fn tokenize_lumps<'a>(header: &Header, data: &[u8]) -> Result<Vec<LumpToken<'a>>> {
-    if header.num_lumps == 0 {
-        return Ok(Vec::new());
-    }
-
-    let mut directory_offset = header.info_table_offset as usize;
-    let directory_end = directory_offset + (header.num_lumps as usize * LUMP_ENTRY_LENGTH);
-    if data.len() < directory_end {
-        return Err("Data too small to contain directory entries".into());
-    }
-    let mut tokens = Vec::with_capacity(header.num_lumps as usize);
-
-    loop {
-        if directory_offset + LUMP_ENTRY_LENGTH > directory_end {
-            break;
-        }
-
-        let name_offset = directory_offset + 8;
-
-        let name = {
-            let slice = &data[name_offset..name_offset + 8];
-            // Safety: We are reading exactly 8 bytes from a valid slice of data we checked above
-            // the overall data length is at least directory_end
-            unsafe {
-                let name_bytes: &[u8; 8] = &*(slice.as_ptr() as *const [u8; 8]);
-                std::str::from_utf8_unchecked(name_bytes).trim_end_matches('\0')
-            }
-        };
-        let dir_ref = {
-            let start = {
-                let offset_bytes = &data[directory_offset..directory_offset + 4];
-                u32::from_le_bytes(offset_bytes.try_into()?) as usize
-            };
-            let end = {
-                let size_bytes = &data[directory_offset + 4..directory_offset + 8];
-                let size = u32::from_le_bytes(size_bytes.try_into()?) as usize;
-                start + size
-            };
-            LumpRef::new(start, end, name_offset)
-        };
-
-        if dir_ref.is_marker() {
-            if is_map_marker(&name) {
-                tokens.push(LumpToken::MapMarker(name));
-            } else if LumpToken::is_start_marker(&name) {
-                tokens.push(LumpToken::MarkerStart(name));
-            } else if LumpToken::is_end_marker(&name) {
-                tokens.push(LumpToken::MarkerEnd(name));
-            }
-        } else {
-            tokens.push(LumpToken::Lump(name, dir_ref));
-        }
-        directory_offset += LUMP_ENTRY_LENGTH;
-    }
-
-    Ok(tokens)
 }
 
 fn is_map_marker(name: &str) -> bool {
@@ -121,29 +63,32 @@ impl<'a> Iterator for TokenIterator<'a> {
         }
 
         let entry_offset = self.directory_offset;
-        let name_offset = entry_offset + 8;
-        let entry_bytes: &[u8; 16] = self.data[entry_offset..entry_offset + LUMP_ENTRY_LENGTH].try_into().unwrap();
-
-        let lump_ref = {
-            let pos = i32::from_le_bytes([
-                entry_bytes[0],
-                entry_bytes[1],
-                entry_bytes[2],
-                entry_bytes[3],
-            ]) as usize;
-            let len = i32::from_le_bytes([
-                entry_bytes[4],
-                entry_bytes[5],
-                entry_bytes[6],
-                entry_bytes[7],
-            ]) as usize;
-            LumpRef::new(pos, pos + len, name_offset)
-        };
-
         self.directory_offset += LUMP_ENTRY_LENGTH;
 
-        let name = lump_ref.name(self.data).unwrap();
-        if lump_ref.is_marker() {
+        // Safety: We are reading exactly 8 bytes from a valid slice of data we checked above
+        // the overall data length is at least directory_end
+        let (pos_bytes, len_bytes, name) = unsafe {
+            let pos_ptr = self.data.as_ptr().add(entry_offset);
+            let len_ptr = pos_ptr.add(4);
+            let name_ptr = len_ptr.add(4);
+            let name_bytes: &[u8; 8] = &*(name_ptr as *const [u8; 8]);
+            let pos_bytes: &[u8; 4] = &*(pos_ptr as *const [u8; 4]);
+            let len_bytes: &[u8; 4] = &*(len_ptr as *const [u8; 4]);
+
+            (
+                pos_bytes,
+                len_bytes,
+                std::str::from_utf8_unchecked(name_bytes).trim_end_matches('\0'),
+            )
+        };
+        let pos = i32::from_le_bytes(*pos_bytes) as usize;
+        let len = i32::from_le_bytes(*len_bytes) as usize;
+        let data = &self.data[pos..pos + len];
+
+        let lump_ref = LumpRef::new(data, name);
+
+        let name = lump_ref.name();
+        if len == 0 { // Marker lump
             if is_map_marker(&name) {
                 Some(Ok(LumpToken::MapMarker(name)))
             } else if LumpToken::is_start_marker(&name) {
@@ -186,45 +131,6 @@ mod tests {
 
         let second_token = tokens.next().unwrap().unwrap();
         assert_eq!(second_token, LumpToken::MarkerEnd("_END"));
-
-        assert!(tokens.next().is_none());
-    }
-
-    #[test]
-    fn tokenize_lumps_produces_correct_lump_tokens() {
-        let header = Header {
-            identification: MagicString::try_from(b"IWAD").unwrap(),
-            num_lumps: 2,
-            info_table_offset: 0,
-        };
-
-        let data = Rc::from(vec![
-            // LUMP1
-            4, 0, 0, 0, 1, 0, 0, 0, b'L', b'U', b'M', b'P', b'1', 0, 0, 0, // LUMP2
-            3, 0, 0, 0, 2, 0, 0, 0, b'L', b'U', b'M', b'P', b'2', 0, 0, 0,
-        ]);
-
-        let mut tokens = TokenIterator::new(header, &data).unwrap();
-
-        let first_token = tokens.next().unwrap().unwrap();
-        match first_token {
-            LumpToken::Lump(name, dref) => {
-                assert_eq!(name, "LUMP1");
-                assert_eq!(dref.start(), 4);
-                assert_eq!(dref.end(), 5);
-            }
-            _ => panic!("Expected Lump token for LUMP1"),
-        }
-
-        let second_token = tokens.next().unwrap().unwrap();
-        match second_token {
-            LumpToken::Lump(name, dref) => {
-                assert_eq!(name, "LUMP2");
-                assert_eq!(dref.start(), 3);
-                assert_eq!(dref.end(), 5);
-            }
-            _ => panic!("Expected Lump token for LUMP2"),
-        }
 
         assert!(tokens.next().is_none());
     }
