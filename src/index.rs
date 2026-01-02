@@ -7,16 +7,47 @@ use std::iter::Peekable;
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn index_tokens(tokens: TokenIterator) -> Result<HashMap<String, LumpRef>> {
+#[derive(Debug)]
+pub enum LumpNode<'a> {
+    Namespace {
+        name: &'a str,
+        children: HashMap<&'a str, LumpNode<'a>>,
+    },
+    Lump {
+        name: &'a str,
+        lump: LumpRef<'a>,
+    },
+}
+
+impl<'a> LumpNode<'a> {
+    pub fn namespace(name: &'a str) -> Self {
+        LumpNode::Namespace {
+            name,
+            children: HashMap::new(),
+        }
+    }
+
+    pub fn lump(name: &'a str, lump: LumpRef<'a>) -> Self {
+        LumpNode::Lump {
+            name,
+            lump,
+        }
+    }
+}
+
+
+pub fn index_tokens<'a>(
+    tokens: TokenIterator<'a>,
+) -> Result<HashMap<&'a str, LumpNode<'a>>> {
     let mut tokens = tokens.peekable();
-    let mut lumps = HashMap::new();
+    let mut lumps: HashMap<&'a str, LumpNode<'a>> = HashMap::new();
 
-    while let Some(result) = tokens.peek() {
-
-        let token = result.as_ref().unwrap();
+    while let Some(result) = tokens.next() {
+        let token = result?;
         match token {
             LumpToken::Lump(name, lump_ref) => {
-                lumps.insert(name.to_string(), *lump_ref);
+                let lump_node = LumpNode::lump(name, lump_ref);
+                lumps.insert(name, lump_node);
             }
 
             LumpToken::MapMarker(_) => {
@@ -25,14 +56,17 @@ pub fn index_tokens(tokens: TokenIterator) -> Result<HashMap<String, LumpRef>> {
             }
 
             LumpToken::MarkerStart(marker) => {
-                let namespace = marker.replace("_START", "");
-                index_namespace(&mut lumps, &namespace, &mut tokens)?;
+                let children = index_namespace(marker, &mut tokens)?;
+                let namespace_node = LumpNode::Namespace {
+                    name: marker,
+                    children,
+                };
+                lumps.insert(marker, namespace_node);
             }
             LumpToken::MarkerEnd(_) => {
                 return Err("Unexpected end marker without matching start marker".into());
             }
         }
-        tokens.next();
     }
 
     Ok(lumps)
@@ -40,65 +74,118 @@ pub fn index_tokens(tokens: TokenIterator) -> Result<HashMap<String, LumpRef>> {
 
 fn skip_map_lumps(tokens: &mut Peekable<TokenIterator>) {
     tokens.next();
-    while let Some(token) = tokens.peek() {
-        if let Err(_) = token {
-            continue;
+
+    loop {
+        let is_map = match tokens.peek() {
+            Some(Ok(LumpToken::Lump(name, _))) if is_map_lump(name) => true,
+            _ => false,
+        };
+
+        if !is_map {
+            break;
         }
-        let token = token.as_ref().unwrap();
-        match token {
-            LumpToken::Lump(name, _) => {
-                if !is_map_lump(name) {
-                    break;
-                }
-            }
-            _ => { break; }
-        }
+
         tokens.next();
     }
 }
-
 fn index_namespace<'a>(
-    lumps: &mut HashMap<String, LumpRef<'a>>,
-    namespace: &String,
+    namespace: &'a str,
     tokens: &mut Peekable<TokenIterator<'a>>,
-) -> Result<()> {
-    tokens.next();
-    while let Some(token) = tokens.peek() {
-        if let Err(_err) = token {
-            // TODO: improve error handling
-            return Err("Error while indexing namespace".into());
-        }
-        let token = token.as_ref().unwrap();
+) -> Result<HashMap<&'a str, LumpNode<'a>>> {
+    let mut lumps = HashMap::new();
+
+    while let Some(result) = tokens.next() {
+        let token = result?;
+
         match token {
             LumpToken::Lump(name, lump_ref) => {
-                let namespaced_name = format!("{}/{}", namespace, name);
-                lumps.insert(namespaced_name, *lump_ref);
+                lumps.insert(name, LumpNode::lump(name, lump_ref));
             }
-            LumpToken::MarkerStart(start_marker) => {
-                let inner_namespace = start_marker.replace("_START", "");
-                let mut full_namespace = String::with_capacity(namespace.len() + 1 + inner_namespace.len());
-                full_namespace.push_str(namespace);
-                full_namespace.push('/');
-                full_namespace.push_str(&inner_namespace);
-                index_namespace(lumps, &full_namespace, tokens)?;
+
+            LumpToken::MarkerStart(name) => {
+                let children = index_namespace(name, tokens)?;
+                lumps.insert(
+                    name,
+                    LumpNode::Namespace {
+                        name,
+                        children,
+                    },
+                );
             }
-            LumpToken::MarkerEnd(end_marker) => {
-                let namespace_end = end_marker.replace("_END", "");
-                if *namespace == namespace_end || namespace.ends_with(&namespace_end) {
-                    break;
+
+            LumpToken::MarkerEnd(name) => {
+                let end_ns = name.strip_suffix("_END")
+                    .ok_or_else(|| format!("Invalid end marker name: {}", name))?;
+
+                let start_ns = namespace.strip_suffix("_START")
+                    .ok_or_else(|| format!("Invalid start marker name: {}", namespace))?;
+
+                return if start_ns == end_ns {
+                    Ok(lumps)
+                } else {
+                    Err(format!(
+                        "Mismatched end marker: expected '{}', found '{}'",
+                        start_ns, end_ns
+                    ).into())
                 }
-                return Err(format!(
-                    "Mismatched end marker: expected namespace '{}', found '{}'",
-                    namespace, namespace_end
-                )
-                .into());
             }
+
             _ => {}
         }
-        tokens.next();
     }
-    Ok(())
+
+    Ok(lumps)
 }
+
+// fn index_namespace<'a>(
+//     namespace: &'a str,
+//     tokens: &mut Peekable<TokenIterator>,
+// ) -> Result<HashMap<&'a str, LumpNode<'a>>> {
+//     let mut lumps: HashMap<&str, LumpNode> = HashMap::new();
+//     tokens.next();
+//     while let Some(token) = tokens.peek() {
+//         if let Err(_err) = token {
+//             // TODO: improve error handling
+//             return Err("Error while indexing namespace".into());
+//         }
+//         let token = token.as_ref().unwrap();
+//         match token {
+//             LumpToken::Lump(name, lump_ref) => {
+//                 let lump_node = LumpNode::lump(name, lump_ref);
+//                 lumps.insert(name, lump_node);
+//
+//             }
+//             LumpToken::MarkerStart(name) => {
+//                 let children = index_namespace(name, tokens)?;
+//                 let namespace_node = LumpNode::Namespace {
+//                     name,
+//                     children,
+//                 };
+//                 lumps.insert(name, namespace_node);
+//             }
+//             LumpToken::MarkerEnd(name) => {
+//                 let end_ns = name.strip_suffix("_END").ok_or_else(|| {;
+//                     format!("Invalid end marker name: expected to end with '_END', found '{}'", name)
+//                 })?;
+//                 let start_ns = namespace.strip_suffix("_START").ok_or_else(|| {
+//                     format!("Invalid start marker name: expected to end with '_START', found '{}'", namespace)
+//                 })?;
+//
+//                 if start_ns == end_ns {
+//                     break;
+//                 }
+//                 return Err(format!(
+//                     "Mismatched end marker: expected namespace '{}', found '{}'",
+//                     start_ns, end_ns
+//                 )
+//                     .into());
+//             }
+//             _ => {}
+//         }
+//         tokens.next();
+//     }
+//     Ok(lumps)
+// }
 
 // #[cfg(test)]
 // mod tests {

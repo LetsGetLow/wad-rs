@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use wad_rs::index::LumpNode;
 use wad_rs::lump::LumpRef;
 use wad_rs::WadIndex;
 
@@ -48,7 +49,10 @@ fn bench_converting_audio(b: &mut Criterion) {
         .get_lump_index()
         .iter()
         .filter(|(name, _)| name.starts_with("DS"))
-        .map(|(_, lump_ref)| lump_ref)
+        .map(|(_, lump_node)| match lump_node {
+            LumpNode::Namespace { .. } => panic!("Sound lump is a namespace, expected a lump"),
+            LumpNode::Lump {lump,  .. } => lump,
+        })
         .collect();
 
     let mut group = b.benchmark_group("Wad audio conversion");

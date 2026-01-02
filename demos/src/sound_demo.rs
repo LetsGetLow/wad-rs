@@ -1,4 +1,5 @@
 use demos::AudioStream;
+use wad_rs::index::LumpNode;
 
 fn main() {
     let wad_data = include_bytes!("../../assets/wad/freedoom1.wad");
@@ -15,9 +16,13 @@ fn main() {
         }
     };
 
-    for (name, lump_ref) in index.iter() {
+    for (name, lump_node) in index.iter() {
         if name.starts_with("DS") {
             assert!(wad_data.len() >= 8);
+            let lump_ref = match lump_node {
+                LumpNode::Namespace { .. } => continue,
+                LumpNode::Lump {lump, .. } => lump
+            };
             let data = lump_ref.data();
             let sample = wad_rs::audio::SoundSample::try_from(data).unwrap();
             audio_stream.append_sound(sample);

@@ -1,11 +1,9 @@
 use crate::audio::SoundSample;
 use crate::header::{Header, MagicString};
-use crate::index::index_tokens;
-use crate::lump::LumpRef;
+use crate::index::{LumpNode, index_tokens};
 use crate::map::MapIterator;
 use crate::tokenizer::TokenIterator;
 use std::collections::HashMap;
-use std::ops::Add;
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
@@ -15,7 +13,7 @@ pub struct WadIndex {
     name: String,
     data: &'static [u8],
     file_type: MagicString,
-    lump_index: HashMap<String, LumpRef<'static>>,
+    lump_index: HashMap<&'static str, LumpNode<'static>>,
 }
 
 impl WadIndex {
@@ -27,8 +25,7 @@ impl WadIndex {
         let header_bytes: &[u8; 12] = data[0..12].try_into()?;
         let header = Header::try_from(header_bytes).map_err(|e| e.to_string())?;
         let file_type = header.identification;
-        let tokens = TokenIterator::new(header, &data)?;
-        let lump_index = index_tokens(tokens)?;
+        let lump_index = index_tokens(TokenIterator::new(header, &data)?)?;
 
         let wad_index = WadIndex {
             header,
@@ -40,23 +37,32 @@ impl WadIndex {
 
         Ok(wad_index)
     }
-    pub fn get_lump_index(&self) -> &HashMap<String, LumpRef> {
+    pub fn get_lump_index<'a>(&self) -> &HashMap<&'a str, LumpNode<'a>> {
         &self.lump_index
     }
 
-    pub fn get_lump(&self, namespaces: Vec<String>, name: &str) -> Option<&LumpRef> {
-        let full_name = namespaces
-            .iter()
-            .fold(String::new(), |acc, namespace| acc.add(namespace).add("/"))
-            .add(name);
-
-        self.lump_index.get(&full_name)
+    pub fn get_lump(&self, namespaces: Vec<&str>, name: &str) -> Option<&LumpNode> {
+        let mut current_index = &self.lump_index;
+        for namespace in namespaces {
+            if let Some(LumpNode::Namespace { children, .. }) =
+                current_index.get(namespace)
+            {
+                current_index = children;
+            } else {
+                return None;
+            }
+        }
+        current_index.get(name)
     }
 
     pub fn get_sound_sample(&self, name: &str) -> Result<Option<SoundSample>> {
-        if let Some(lump_ref) = self.lump_index.get(name) {
-            let lump_data = lump_ref.data();
-            Ok(Some(SoundSample::try_from(lump_data)?))
+        if let Some(lump_node) = self.lump_index.get(name) {
+            if let LumpNode::Lump { lump, .. } = lump_node {
+                let lump_data = lump.data();
+                Ok(Some(SoundSample::try_from(lump_data)?))
+            } else {
+                Ok(None)
+            }
         } else {
             Ok(None)
         }
@@ -156,20 +162,20 @@ impl WadIndex {
 //         assert!(lump.is_some());
 //     }
 //
-    // #[test]
-    // fn wad_index_can_provide_a_map_iterator() {
-    //     let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
-    //     let wad_bytes: Rc<[u8]> = Rc::from(wad_data);
-    //     let wad = WadIndex::from_bytes("freedoom1.wad".to_string(), Rc::clone(&wad_bytes)).unwrap();
-    //     let map_iterator = wad.map_iter();
-    //     assert_eq!(map_iterator.count(), 36); // Freedoom1 has 36 maps
-    //
-    //     let mut map_iterator = wad.map_iter();
-    //     let first_map = map_iterator.next();
-    //     assert!(first_map.is_some());
-    //     let first_map = first_map.unwrap();
-    //     assert!(first_map.name().eq("E1M1"));
-    //     let last_map = map_iterator.last().unwrap();
-    //     assert_eq!(last_map.name().to_owned(), "E4M9".to_string());
-    // }
+// #[test]
+// fn wad_index_can_provide_a_map_iterator() {
+//     let wad_data = include_bytes!("../assets/wad/freedoom1.wad").to_vec();
+//     let wad_bytes: Rc<[u8]> = Rc::from(wad_data);
+//     let wad = WadIndex::from_bytes("freedoom1.wad".to_string(), Rc::clone(&wad_bytes)).unwrap();
+//     let map_iterator = wad.map_iter();
+//     assert_eq!(map_iterator.count(), 36); // Freedoom1 has 36 maps
+//
+//     let mut map_iterator = wad.map_iter();
+//     let first_map = map_iterator.next();
+//     assert!(first_map.is_some());
+//     let first_map = first_map.unwrap();
+//     assert!(first_map.name().eq("E1M1"));
+//     let last_map = map_iterator.last().unwrap();
+//     assert_eq!(last_map.name().to_owned(), "E4M9".to_string());
+// }
 // }

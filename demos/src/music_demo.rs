@@ -2,6 +2,7 @@ extern crate core;
 
 use demos::AudioStream;
 use wad_rs::audio::{MidiSynthesizer, MusicSample};
+use wad_rs::index::LumpNode;
 
 fn main() {
     let wad_data = include_bytes!("../../assets/wad/freedoom1.wad");
@@ -22,8 +23,12 @@ fn main() {
     let mut synthesizer =
         MidiSynthesizer::new(include_bytes!("../../assets/microgm.sf2"), 44_100).unwrap();
 
-    for (name, lump_ref) in index.iter() {
+    for (name, lump_node) in index.iter() {
         if name.starts_with("D_") {
+            let lump_ref = match lump_node {
+                LumpNode::Namespace { .. } => continue,
+                LumpNode::Lump {lump, .. } => lump
+            };
             assert!(wad_data.len() >= 8);
             let data = lump_ref.data();
             let sample = MusicSample::from_bytes(&mut synthesizer, data, true).unwrap();
