@@ -8,16 +8,16 @@ use std::collections::HashMap;
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
-pub struct WadIndex {
+pub struct WadIndex<'a> {
     header: Header,
     name: String,
-    data: &'static [u8],
+    data: &'a [u8],
     file_type: MagicString,
-    lump_index: HashMap<&'static str, LumpNode<'static>>,
+    lump_index: HashMap<&'a str, LumpNode<'a>>,
 }
 
-impl WadIndex {
-    pub fn from_bytes(name: String, data: &'static [u8]) -> Result<Self> {
+impl<'a> WadIndex<'a> {
+    pub fn from_bytes(name: String, data: &'a [u8]) -> Result<Self> {
         let size = data.len();
         if size < 12 {
             return Err("Data too small to contain valid WAD header".into());
@@ -37,11 +37,11 @@ impl WadIndex {
 
         Ok(wad_index)
     }
-    pub fn get_lump_index<'a>(&self) -> &HashMap<&'a str, LumpNode<'a>> {
+    pub fn get_lump_index(&self) -> &HashMap<&'a str, LumpNode<'a>> {
         &self.lump_index
     }
 
-    pub fn get_lump(&self, namespaces: Vec<&str>, name: &str) -> Option<&LumpNode> {
+    pub fn get_lump(&'_ self, namespaces: Vec<&str>, name: &str) -> Option<&LumpNode<'a>> {
         let mut current_index = &self.lump_index;
         for namespace in namespaces {
             if let Some(LumpNode::Namespace { children, .. }) =
@@ -68,7 +68,7 @@ impl WadIndex {
         }
     }
 
-    pub fn get_name(&self) -> &String {
+    pub fn get_name(&self) -> &str {
         &self.name
     }
 

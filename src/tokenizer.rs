@@ -31,7 +31,6 @@ fn is_map_marker(name: &str) -> bool {
 }
 
 pub struct TokenIterator<'a> {
-    header: Header,
     data: &'a [u8],
     directory_offset: usize,
     directory_end: usize,
@@ -45,7 +44,6 @@ impl<'a> TokenIterator<'a> {
             Err("Data too small to contain directory entries".into())
         } else {
             Ok(TokenIterator {
-                header,
                 data,
                 directory_offset,
                 directory_end,
