@@ -54,15 +54,12 @@ impl SpriteHeader {
 /// - 1 byte: 0xFF (end of column marker)
 ///
 #[derive(Debug, Clone)]
-pub struct Sprite {
-    // Offsets within the WAD data slice
-    lump_start: usize,
-    // End offset within the WAD data slice
-    lump_end: usize,
+pub struct Sprite<'a> {
+    lump_data: &'a [u8],
     header: SpriteHeader,
 }
 
-impl Sprite {
+impl<'a> Sprite<'a> {
     /// Creates a `Sprite` from the complete lump slice.
     ///
     /// # Arguments
@@ -72,18 +69,12 @@ impl Sprite {
     /// # Returns
     /// - `Ok(Sprite)` if the sprite lump is valid.
     /// - `Err` if the sprite lump is invalid or out of bounds.
-    pub fn new(data: &[u8], start: usize, end: usize) -> Result<Self> {
-        if start >= end || end > data.len() {
-            return Err("sprite lump range out of bounds".into());
-        }
+    pub fn new(lump_data: &'a [u8]) -> Result<Self> {
+        let header = SpriteHeader::from_bytes(lump_data)?;
+        Self::check_size(header.width as usize, lump_data)?;
 
-        let lump = &data[start..end];
-        let header = SpriteHeader::from_bytes(lump)?;
-        Self::check_size(header.width as usize, lump)?;
-
-        Ok(Sprite {
-            lump_start: start,
-            lump_end: end,
+        Ok(Self {
+            lump_data,
             header,
         })
     }
@@ -110,14 +101,10 @@ impl Sprite {
 
     // Size of the sprite image data in bytes
     pub fn size(&self) -> usize {
-        self.lump_end - self.lump_start
+        self.lump_data.len()
     }
 
-    pub fn extract_lump_data<'a>(&self, data: &'a [u8]) -> &'a [u8] {
-        &data[self.lump_start..self.lump_end]
-    }
-
-    pub fn rgba_pixel_buffer(&self, data: &[u8], palette: &Palette) -> Result<Vec<u8>> {
+    pub fn rgba_pixel_buffer(&self, palette: &Palette) -> Result<Vec<u8>> {
         let w = self.width() as usize;
         let h = self.height() as usize;
 
@@ -126,7 +113,7 @@ impl Sprite {
             return Err("sprite has zero width or height".into());
         }
 
-        let lump = self.extract_lump_data(data);
+        let lump = self.lump_data;
 
         Self::check_size(w, lump)?;
 

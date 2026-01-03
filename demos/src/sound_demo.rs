@@ -1,11 +1,10 @@
-use std::rc::Rc;
 use demos::AudioStream;
+use wad_rs::index::LumpNode;
 
 fn main() {
-    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad").to_vec();
-    let wad_data = Rc::from(wad_data);
+    let wad_data = include_bytes!("../../assets/wad/freedoom1.wad");
     let wad =
-        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), Rc::clone(&wad_data)).unwrap();
+        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data).unwrap();
 
     let index = wad.get_lump_index();
     let audio_stream = AudioStream::new();
@@ -17,20 +16,14 @@ fn main() {
         }
     };
 
-    for (name, lump_ref) in index.iter() {
-        if lump_ref.end() > wad_data.len() {
-            println!("Lump {} has invalid end offset, skipping", name);
-            continue;
-        }
-
-        if lump_ref.start() > wad_data.len() {
-            println!("Lump {} has invalid start offset, skipping", name);
-            continue;
-        }
-
+    for (name, lump_node) in index.iter() {
         if name.starts_with("DS") {
             assert!(wad_data.len() >= 8);
-            let data = wad_data[lump_ref.start()..lump_ref.end()].as_ref();
+            let lump_ref = match lump_node {
+                LumpNode::Lump {lump, .. } => lump,
+                _ => continue,
+            };
+            let data = lump_ref.data();
             let sample = wad_rs::audio::SoundSample::try_from(data).unwrap();
             audio_stream.append_sound(sample);
             println!("Lump {name} appended to audio stream");

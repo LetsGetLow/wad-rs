@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 rodio.workspace = true
 png.workspace = true
-wad-rs.path = ".."
+wad-rs.path = "../"
 
 [[bin]]
 name = "sound_demo"
@@ -23,3 +23,7 @@ path = "src/palette_demo.rs"
 [[bin]]
 name = "sprite_demo"
 path = "src/sprite_demo.rs"
+
+[[bin]]
+name = "map_demo"
+path = "src/map_demo.rs"
