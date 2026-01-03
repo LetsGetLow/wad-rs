@@ -83,10 +83,11 @@ impl<'a> Iterator for TokenIterator<'a> {
         let len = i32::from_le_bytes(*len_bytes) as usize;
         let data = &self.data[pos..pos + len];
 
-        let lump_ref = LumpRef::new(data, name);
+        let lump_ref = LumpRef::new(name, data);
 
         let name = lump_ref.name();
-        if len == 0 { // Marker lump
+        if len == 0 {
+            // Marker lump
             if is_map_marker(&name) {
                 Some(Ok(LumpToken::MapMarker(name)))
             } else if LumpToken::is_start_marker(&name) {
@@ -100,6 +101,44 @@ impl<'a> Iterator for TokenIterator<'a> {
             Some(Ok(LumpToken::Lump(name, lump_ref)))
         }
     }
+}
+
+// Helper function to create fake token data for testing
+#[cfg(test)]
+pub fn fake_token_data<'a>(entries: &[(&'a str, &'a [u8])]) -> (Header, Vec<u8>) {
+    use crate::header::{Header, MagicString};
+    use crate::lump::LUMP_ENTRY_LENGTH;
+
+    let dir_size = entries.len() * LUMP_ENTRY_LENGTH;
+
+    let mut dir = Vec::with_capacity(dir_size);
+    let mut lump_data = Vec::new();
+
+    for (name, payload) in entries {
+        // pos muss relativ zum Start des gesamten Blobs sein: [dir][lump_data]
+        let pos = (dir_size + lump_data.len()) as i32;
+        let len = payload.len() as i32;
+
+        lump_data.extend_from_slice(payload);
+
+        dir.extend_from_slice(&pos.to_le_bytes());
+        dir.extend_from_slice(&len.to_le_bytes());
+
+        let mut name_buf = [0u8; 8];
+        name_buf[..name.len()].copy_from_slice(name.as_bytes());
+        dir.extend_from_slice(&name_buf);
+    }
+
+    dir.extend_from_slice(&lump_data);
+
+    (
+        Header {
+            identification: MagicString::try_from(b"IWAD").unwrap(),
+            num_lumps: entries.len() as i32,
+            info_table_offset: 0,
+        },
+        dir,
+    )
 }
 
 #[cfg(test)]

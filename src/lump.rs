@@ -15,13 +15,13 @@ pub struct LumpRef<'a> {
 
 impl<'a> LumpRef<'a> {
     /// Creates a new LumpRef
-    pub fn new(data: &'a [u8], name: &'a str) -> Self {
-        Self { data, name }
+    pub fn new(name: &'a str, data: &'a [u8]) -> Self {
+        Self { name, data }
     }
 
     // Determines if the lump is a marker (has no data)
     pub fn is_marker(&self) -> bool {
-        self.data.len() == 0
+        self.data.is_empty()
     }
 
     // Returns the lump name
@@ -43,7 +43,7 @@ mod tests {
     fn lump_ref_can_store_the_name() {
         let lump_data: &[u8] = &[1, 2, 3, 4, 5];
         let lump_name = "TESTLUMP";
-        let lump_ref = LumpRef::new(lump_data, lump_name);
+        let lump_ref = LumpRef::new(lump_name, lump_data);
         assert_eq!(lump_ref.name(), lump_name);
     }
 
@@ -51,7 +51,7 @@ mod tests {
     fn lump_ref_can_store_the_data() {
         let lump_data: &[u8] = &[1, 2, 3, 4, 5];
         let lump_name = "TESTLUMP";
-        let lump_ref = LumpRef::new(lump_data, lump_name);
+        let lump_ref = LumpRef::new(lump_name, lump_data);
         assert_eq!(lump_ref.data(), lump_data);
     }
 
@@ -59,7 +59,7 @@ mod tests {
     fn lump_ref_identifies_marker_lump() {
         let marker_lump_data: &[u8] = &[];
         let marker_lump_name = "MARKER";
-        let marker_lump_ref = LumpRef::new(marker_lump_data, marker_lump_name);
+        let marker_lump_ref = LumpRef::new(marker_lump_name, marker_lump_data);
         assert!(marker_lump_ref.is_marker());
     }
 }
