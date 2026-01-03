@@ -1,23 +1,6 @@
 pub const LUMP_NAME_LENGTH: usize = 8;
 pub const LUMP_ENTRY_LENGTH: usize = 16;
 
-pub fn is_map_lump(name: &str) -> bool {
-    matches!(
-        name,
-        "THINGS"
-            | "LINEDEFS"
-            | "SIDEDEFS"
-            | "VERTEXES"
-            | "SECTORS"
-            | "SSECTORS"
-            | "SEGS"
-            | "NODES"
-            | "REJECT"
-            | "BLOCKMAP"
-            | "BEHAVIOR"
-    )
-}
-
 /// A refence to a lump data and it's name
 /// this struct does not own any data, it just points to offsets in the WAD file
 /// it should be used in conjunction with the WAD file data to extract the lump name and data

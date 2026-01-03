@@ -20,8 +20,8 @@ fn main() {
         if name.starts_with("DS") {
             assert!(wad_data.len() >= 8);
             let lump_ref = match lump_node {
-                LumpNode::Namespace { .. } => continue,
-                LumpNode::Lump {lump, .. } => lump
+                LumpNode::Lump {lump, .. } => lump,
+                _ => continue,
             };
             let data = lump_ref.data();
             let sample = wad_rs::audio::SoundSample::try_from(data).unwrap();

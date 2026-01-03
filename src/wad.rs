@@ -1,7 +1,6 @@
 use crate::audio::SoundSample;
 use crate::header::{Header, MagicString};
 use crate::index::{LumpNode, index_tokens};
-use crate::map::MapIterator;
 use crate::tokenizer::TokenIterator;
 use std::collections::HashMap;
 
@@ -11,7 +10,6 @@ type Result<T> = std::result::Result<T, Error>;
 pub struct WadIndex<'a> {
     header: Header,
     name: String,
-    data: &'a [u8],
     file_type: MagicString,
     lump_index: HashMap<&'a str, LumpNode<'a>>,
 }
@@ -32,11 +30,15 @@ impl<'a> WadIndex<'a> {
             name,
             file_type,
             lump_index,
-            data,
         };
 
         Ok(wad_index)
     }
+
+    pub fn get_header(&self) -> &Header {
+        &self.header
+    }
+
     pub fn get_lump_index(&self) -> &HashMap<&'a str, LumpNode<'a>> {
         &self.lump_index
     }
@@ -76,10 +78,13 @@ impl<'a> WadIndex<'a> {
         self.file_type
     }
 
-    // pub fn map_iter(&self) -> MapIterator<'_> {
-    //     let tokens = TokenIterator::new(self.header, &self.data).unwrap();
-    //     MapIterator::new(tokens)
-    // }
+    pub fn get_maps(&self) -> Option<&HashMap<&'a str, LumpNode<'a>>> {
+        if let Some(LumpNode::Namespace { children, .. }) = self.lump_index.get("MAPS") {
+            Some(children)
+        } else {
+            None
+        }
+    }
 }
 
 // #[cfg(test)]

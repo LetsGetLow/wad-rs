@@ -50,8 +50,8 @@ fn bench_converting_audio(b: &mut Criterion) {
         .iter()
         .filter(|(name, _)| name.starts_with("DS"))
         .map(|(_, lump_node)| match lump_node {
-            LumpNode::Namespace { .. } => panic!("Sound lump is a namespace, expected a lump"),
             LumpNode::Lump {lump,  .. } => lump,
+            _ => panic!("not a lump"),
         })
         .collect();
 

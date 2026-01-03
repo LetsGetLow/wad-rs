@@ -7,10 +7,8 @@ fn main() {
 
     let palette_node = wad.get_lump(Vec::new(), "PLAYPAL").unwrap();
     let palette_lump = match palette_node {
-        LumpNode::Namespace { .. } => {
-            panic!("PLAYPAL lump is a namespace, expected a lump");
-        }
         LumpNode::Lump { lump, .. } => lump,
+        _ => panic!("PLAYPAL not a lump"),
     };
     let palette_data = palette_lump.data();
     let palette = wad_rs::graphics::Palette::try_from(palette_data).unwrap();

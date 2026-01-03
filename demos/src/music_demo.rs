@@ -26,8 +26,8 @@ fn main() {
     for (name, lump_node) in index.iter() {
         if name.starts_with("D_") {
             let lump_ref = match lump_node {
-                LumpNode::Namespace { .. } => continue,
-                LumpNode::Lump {lump, .. } => lump
+                LumpNode::Lump {lump, .. } => lump,
+                _ => continue,
             };
             assert!(wad_data.len() >= 8);
             let data = lump_ref.data();

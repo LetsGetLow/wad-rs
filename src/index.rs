@@ -1,4 +1,3 @@
-use crate::lump::is_map_lump;
 use crate::lump::LumpRef;
 use crate::tokenizer::{LumpToken, TokenIterator};
 use std::collections::HashMap;
@@ -7,7 +6,6 @@ use std::iter::Peekable;
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
 pub enum LumpNode<'a> {
     Namespace {
         name: &'a str,
@@ -20,27 +18,19 @@ pub enum LumpNode<'a> {
 }
 
 impl<'a> LumpNode<'a> {
-    pub fn namespace(name: &'a str) -> Self {
-        LumpNode::Namespace {
-            name,
-            children: HashMap::new(),
-        }
+    pub fn namespace(name: &'a str, children: HashMap<&'a str, LumpNode<'a>>) -> Self {
+        LumpNode::Namespace { name, children }
     }
 
     pub fn lump(name: &'a str, lump: LumpRef<'a>) -> Self {
-        LumpNode::Lump {
-            name,
-            lump,
-        }
+        LumpNode::Lump { name, lump }
     }
 }
 
-
-pub fn index_tokens<'a>(
-    tokens: TokenIterator<'a>,
-) -> Result<HashMap<&'a str, LumpNode<'a>>> {
+pub fn index_tokens<'a>(tokens: TokenIterator<'a>) -> Result<HashMap<&'a str, LumpNode<'a>>> {
     let mut tokens = tokens.peekable();
     let mut lumps: HashMap<&'a str, LumpNode<'a>> = HashMap::new();
+    let mut maps: HashMap<&'a str, LumpNode<'a>> = HashMap::new();
 
     while let Some(result) = tokens.next() {
         let token = result?;
@@ -50,17 +40,15 @@ pub fn index_tokens<'a>(
                 lumps.insert(name, lump_node);
             }
 
-            LumpToken::MapMarker(_) => {
-                skip_map_lumps(&mut tokens);
+            LumpToken::MapMarker(name) => {
+                let map = index_map(name, &mut tokens)?;
+                maps.insert(name, map);
                 continue;
             }
 
             LumpToken::MarkerStart(marker) => {
                 let children = index_namespace(marker, &mut tokens)?;
-                let namespace_node = LumpNode::Namespace {
-                    name: marker,
-                    children,
-                };
+                let namespace_node = LumpNode::namespace(marker, children);
                 lumps.insert(marker, namespace_node);
             }
             LumpToken::MarkerEnd(_) => {
@@ -68,26 +56,28 @@ pub fn index_tokens<'a>(
             }
         }
     }
+    lumps.insert("MAPS", LumpNode::namespace("MAPS", maps));
 
     Ok(lumps)
 }
 
-fn skip_map_lumps(tokens: &mut Peekable<TokenIterator>) {
+fn index_map<'a>(name: &'a str, tokens: &mut Peekable<TokenIterator<'a>>) -> Result<LumpNode<'a>> {
     tokens.next();
 
-    loop {
-        let is_map = match tokens.peek() {
-            Some(Ok(LumpToken::Lump(name, _))) if is_map_lump(name) => true,
-            _ => false,
-        };
-
-        if !is_map {
-            break;
+    let mut map = HashMap::new();
+    while let Some(Ok(LumpToken::Lump(name, lump_ref))) = tokens.next() {
+        match name {
+            "THINGS" | "LINEDEFS" | "SIDEDEFS" | "VERTEXES" | "SECTORS" | "SEGS" | "SSECTORS"
+            | "NODES" | "REJECT" | "BLOCKMAP" | "BEHAVIOR" => {
+                map.insert(name, LumpNode::lump(name, lump_ref));
+            }
+            _ => break,
         }
-
-        tokens.next();
     }
+
+    Ok(LumpNode::namespace(name, map))
 }
+
 fn index_namespace<'a>(
     namespace: &'a str,
     tokens: &mut Peekable<TokenIterator<'a>>,
@@ -104,20 +94,16 @@ fn index_namespace<'a>(
 
             LumpToken::MarkerStart(name) => {
                 let children = index_namespace(name, tokens)?;
-                lumps.insert(
-                    name,
-                    LumpNode::Namespace {
-                        name,
-                        children,
-                    },
-                );
+                lumps.insert(name, LumpNode::namespace(name, children));
             }
 
             LumpToken::MarkerEnd(name) => {
-                let end_ns = name.strip_suffix("_END")
+                let end_ns = name
+                    .strip_suffix("_END")
                     .ok_or_else(|| format!("Invalid end marker name: {}", name))?;
 
-                let start_ns = namespace.strip_suffix("_START")
+                let start_ns = namespace
+                    .strip_suffix("_START")
                     .ok_or_else(|| format!("Invalid start marker name: {}", namespace))?;
 
                 return if start_ns == end_ns {
@@ -126,8 +112,9 @@ fn index_namespace<'a>(
                     Err(format!(
                         "Mismatched end marker: expected '{}', found '{}'",
                         start_ns, end_ns
-                    ).into())
-                }
+                    )
+                    .into())
+                };
             }
 
             _ => {}

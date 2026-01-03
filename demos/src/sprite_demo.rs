@@ -7,8 +7,8 @@ fn main() {
 
     let palette_lump = wad.get_lump(Vec::new(), "PLAYPAL").unwrap();
     let lump_ref = match palette_lump {
-        LumpNode::Namespace { .. } => panic!("PLAYPAL lump is a namespace"),
         LumpNode::Lump { lump, .. } => lump,
+        _ => panic!("PLAYPAL is not a lump"),
     };
     let palette_data = lump_ref.data();
     let palette = wad_rs::graphics::Palette::try_from(palette_data).unwrap();
@@ -17,7 +17,7 @@ fn main() {
         let idx = wad.get_lump(Vec::new(), "S_START").unwrap();
         match idx {
             LumpNode::Namespace { children, .. } => children,
-            LumpNode::Lump { .. } => panic!("S_START is not a namespace"),
+            _ => panic!("S_START is not a namespace"),
         }
     };
 
@@ -26,8 +26,8 @@ fn main() {
     for (name, lump_node) in index.iter() {
         count += 1;
         let lump_ref = match lump_node {
-            LumpNode::Namespace { .. } => continue,
-            LumpNode::Lump {lump, .. } => lump
+            LumpNode::Lump {lump, .. } => lump,
+            _ => continue,
         };
 
         let sprite = wad_rs::sprite::Sprite::new(lump_ref.data()).unwrap();
