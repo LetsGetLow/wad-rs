@@ -65,11 +65,13 @@ fn index_map<'a>(name: &'a str, tokens: &mut Peekable<TokenIterator<'a>>) -> Res
     tokens.next();
 
     let mut map = HashMap::new();
-    while let Some(Ok(LumpToken::Lump(name, lump_ref))) = tokens.next() {
-        match name {
+    while let Some(Ok(LumpToken::Lump(name, ..))) = tokens.peek() {
+        match *name {
             "THINGS" | "LINEDEFS" | "SIDEDEFS" | "VERTEXES" | "SECTORS" | "SEGS" | "SSECTORS"
             | "NODES" | "REJECT" | "BLOCKMAP" | "BEHAVIOR" => {
-                map.insert(name, LumpNode::lump(name, lump_ref));
+                if let Some(Ok(LumpToken::Lump(name, lump_ref))) = tokens.next() {
+                    map.insert(name, LumpNode::lump(name, lump_ref));
+                }
             }
             _ => break,
         }
