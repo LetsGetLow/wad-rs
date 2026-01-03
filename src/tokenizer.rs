@@ -63,7 +63,7 @@ impl<'a> Iterator for TokenIterator<'a> {
         let entry_offset = self.directory_offset;
         self.directory_offset += LUMP_ENTRY_LENGTH;
 
-        // Safety: We are reading exactly 8 bytes from a valid slice of data we checked above
+        // Safety: We are reading exactly 8 bytes from a valid slice of data we checked in new()
         // the overall data length is at least directory_end
         let (pos_bytes, len_bytes, name) = unsafe {
             let pos_ptr = self.data.as_ptr().add(entry_offset);
