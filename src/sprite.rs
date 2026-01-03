@@ -63,20 +63,15 @@ impl<'a> Sprite<'a> {
     /// Creates a `Sprite` from the complete lump slice.
     ///
     /// # Arguments
-    /// - `data`: The complete WAD data slice.
-    /// - `start`: The start offset of the sprite lump within `data`.
-    /// - `end`: The end offset of the sprite lump within `data`.
+    /// - `lump_data`: A byte slice containing the entire sprite lump data.
     /// # Returns
     /// - `Ok(Sprite)` if the sprite lump is valid.
-    /// - `Err` if the sprite lump is invalid or out of bounds.
+    /// - `Err` if the sprite lump is out of bounds.
     pub fn new(lump_data: &'a [u8]) -> Result<Self> {
         let header = SpriteHeader::from_bytes(lump_data)?;
         Self::check_size(header.width as usize, lump_data)?;
 
-        Ok(Self {
-            lump_data,
-            header,
-        })
+        Ok(Self { lump_data, header })
     }
 
     pub fn header(&self) -> SpriteHeader {
@@ -203,13 +198,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sprite_header_from_bytes_rejects_too_small_data() {
-        let data = [0u8; 4];
-        let result = SpriteHeader::from_bytes(&data);
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn sprite_header_can_extract_header_data() {
         let data = [0x10, 0x00, 0x20, 0x00, 0xFF, 0xFF, 0xEE, 0xFF];
         let header = SpriteHeader::from_bytes(&data).unwrap();
@@ -217,5 +205,89 @@ mod tests {
         assert_eq!(header.height, 32);
         assert_eq!(header.left_offset, -1);
         assert_eq!(header.top_offset, -18);
+    }
+
+    #[test]
+    fn sprite_creation_fails_with_insufficient_data() {
+        let data = [0u8; 4];
+        let result = Sprite::new(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn sprite_creation_fails_with_insufficient_column_table() {
+        let data = [0x10, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00]; // width=16, height=32
+        let result = Sprite::new(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn sprite_rgba_pixel_buffer_fails_with_invalid_column_offset() {
+        let mut data = vec![0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00];
+        // Column offsets (invalid offset)
+        data.extend(&0x00000020u32.to_le_bytes()); // offset beyond data
+        data.extend(&0x00000020u32.to_le_bytes());
+        let sprite = Sprite::new(&data).unwrap();
+        let palette_data: Vec<u8> = (0..768).map(|val: u16| (val % 256) as u8).collect();
+        let palette = Palette::try_from(palette_data.as_slice()).unwrap();
+        let result = sprite.rgba_pixel_buffer(&palette);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn sprite_rgba_pixel_buffer_fails_if_writes_beyond_sprite_height() {
+        let mut data = vec![0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00];
+        // Column offsets
+        data.extend(&0x00000008u32.to_le_bytes());
+        // Column data
+        data.push(0); // topdelta
+        data.push(2); // length
+        data.push(0); // dummy
+        data.push(0); // pixel index 0
+        data.push(255); // pixel index 255 (valid)
+        data.push(0xFF); // end of column
+        let sprite = Sprite::new(&data).unwrap();
+        let palette_data: Vec<u8> = (0..768).map(|val: u16| (val % 256) as u8).collect();
+        let palette = Palette::try_from(palette_data.as_slice()).unwrap();
+        let result = sprite.rgba_pixel_buffer(&palette);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn sprite_rgba_pixel_buffer_produces_correct_output() {
+        let mut data = vec![0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00];
+
+        // Header (8) + table (2 * 4) = 16 (0x10)
+        // Each column here is 7 bytes with the current parser:
+        // topdelta(1) + length(1) + dummy(1) + pixels(2) + trailing(1) + end(1) = 7
+        data.extend(&0x00000010u32.to_le_bytes()); // column 0 starts at 16
+        data.extend(&0x00000017u32.to_le_bytes()); // column 1 starts at 16 + 7 = 23
+
+        // Column 0
+        data.push(0); // topdelta
+        data.push(2); // length
+        data.push(0); // dummy (exactly 1 byte for this parser)
+        data.push(1); // pixel 0
+        data.push(2); // pixel 1
+        data.push(0); // trailing byte
+        data.push(0xFF); // end of column
+
+        // Column 1
+        data.push(0); // topdelta
+        data.push(2); // length
+        data.push(0); // dummy
+        data.push(3); // pixel 0
+        data.push(4); // pixel 1
+        data.push(0); // trailing byte
+        data.push(0xFF); // end of column
+
+        let sprite = Sprite::new(&data).unwrap();
+        let palette_data: Vec<u8> = (0..768).map(|val: u16| (val % 256) as u8).collect();
+        let palette = Palette::try_from(palette_data.as_slice()).unwrap();
+        let pixel_buffer = sprite.rgba_pixel_buffer(&palette).unwrap();
+
+        let expected_buffer = vec![3, 4, 5, 255, 9, 10, 11, 255, 6, 7, 8, 255, 12, 13, 14, 255];
+
+        assert_eq!(pixel_buffer, expected_buffer);
     }
 }
