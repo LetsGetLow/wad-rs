@@ -122,7 +122,7 @@ fn index_namespace<'a>(
                 };
             }
 
-            _ => {}
+            _ => {} // ignore other tokens inside namespace
         }
     }
 
