@@ -6,6 +6,9 @@ use std::iter::Peekable;
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
+/// Represents a node in the lump index, which can be either a namespace or a lump.
+/// A namespace contains child lumps or namespaces, while a lump contains a reference to the actual data.
+/// Namespaces are used to group related lumps together, such as map data or other categorized lumps.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LumpNode<'a> {
     Namespace {
@@ -19,15 +22,19 @@ pub enum LumpNode<'a> {
 }
 
 impl<'a> LumpNode<'a> {
+    // helper constructor for namespace variant
     pub fn namespace(name: &'a str, children: HashMap<&'a str, LumpNode<'a>>) -> Self {
         LumpNode::Namespace { name, children }
     }
 
+    // helper constructor for lump variant
     pub fn lump(name: &'a str, lump: LumpRef<'a>) -> Self {
         LumpNode::Lump { name, lump }
     }
 }
 
+
+// main function to index tokens into a lump index
 pub fn index_tokens<'a>(tokens: TokenIterator<'a>) -> Result<HashMap<&'a str, LumpNode<'a>>> {
     let mut tokens = tokens.peekable();
     let mut lumps: HashMap<&'a str, LumpNode<'a>> = HashMap::new();

@@ -20,13 +20,33 @@ impl LumpToken<'_> {
     pub fn is_end_marker(name: &str) -> bool {
         name.ends_with("_END")
     }
+    pub fn is_map_marker(name: &str) -> bool {
+        match name.as_bytes() {
+            [b'M', b'A', b'P', d1, d2] => d1.is_ascii_digit() && d2.is_ascii_digit(),
+            [b'E', d1, b'M', d2] => d1.is_ascii_digit() && d2.is_ascii_digit(),
+            _ => false,
+        }
+    }
 }
 
-fn is_map_marker(name: &str) -> bool {
-    match name.as_bytes() {
-        [b'M', b'A', b'P', d1, d2] => d1.is_ascii_digit() && d2.is_ascii_digit(),
-        [b'E', d1, b'M', d2] => d1.is_ascii_digit() && d2.is_ascii_digit(),
-        _ => false,
+impl<'a> TryFrom<LumpRef<'a>> for LumpToken<'a> {
+    type Error = Error;
+
+    fn try_from(lump_ref: LumpRef<'a>) -> Result<Self> {
+        let name = lump_ref.name();
+        if lump_ref.is_marker() {
+            if LumpToken::is_map_marker(name) {
+                Ok(LumpToken::MapMarker(name))
+            } else if LumpToken::is_start_marker(name) {
+                Ok(LumpToken::MarkerStart(name))
+            } else if LumpToken::is_end_marker(name) {
+                Ok(LumpToken::MarkerEnd(name))
+            } else {
+                Err("Unknown marker type".into())
+            }
+        } else {
+            Ok(LumpToken::Lump(name, lump_ref))
+        }
     }
 }
 
@@ -65,41 +85,27 @@ impl<'a> Iterator for TokenIterator<'a> {
 
         // Safety: We are reading exactly 8 bytes from a valid slice of data we checked in new()
         // the overall data length is at least directory_end
-        let (pos_bytes, len_bytes, name) = unsafe {
-            let pos_ptr = self.data.as_ptr().add(entry_offset);
-            let len_ptr = pos_ptr.add(4);
-            let name_ptr = len_ptr.add(4);
-            let name_bytes: &[u8; 8] = &*(name_ptr as *const [u8; 8]);
-            let pos_bytes: &[u8; 4] = &*(pos_ptr as *const [u8; 4]);
-            let len_bytes: &[u8; 4] = &*(len_ptr as *const [u8; 4]);
+        let name_offset = entry_offset + 8;
+        let name_bytes = &self.data[name_offset..name_offset + 8];
+        let name = unsafe { std::str::from_utf8_unchecked(name_bytes) }.trim_end_matches('\0');
 
-            (
-                pos_bytes,
-                len_bytes,
-                std::str::from_utf8_unchecked(name_bytes).trim_end_matches('\0'),
-            )
-        };
-        let pos = i32::from_le_bytes(*pos_bytes) as usize;
-        let len = i32::from_le_bytes(*len_bytes) as usize;
+        let pos_bytes: [u8; 4] = self
+            .data
+            .get(entry_offset..entry_offset + 4)?
+            .try_into()
+            .ok()?; // should always work
+        let pos = i32::from_le_bytes(pos_bytes) as usize;
+
+        let len_bytes: [u8; 4] = self
+            .data
+            .get(entry_offset + 4..entry_offset + 8)?
+            .try_into()
+            .ok()?; // should always work
+        let len = i32::from_le_bytes(len_bytes) as usize;
+
         let data = &self.data[pos..pos + len];
 
-        let lump_ref = LumpRef::new(name, data);
-
-        let name = lump_ref.name();
-        if len == 0 {
-            // Marker lump
-            if is_map_marker(&name) {
-                Some(Ok(LumpToken::MapMarker(name)))
-            } else if LumpToken::is_start_marker(&name) {
-                Some(Ok(LumpToken::MarkerStart(name)))
-            } else if LumpToken::is_end_marker(&name) {
-                Some(Ok(LumpToken::MarkerEnd(name)))
-            } else {
-                Some(Err("Unknown marker type".into()))
-            }
-        } else {
-            Some(Ok(LumpToken::Lump(name, lump_ref)))
-        }
+        Some(LumpRef::new(name, data).try_into())
     }
 }
 
