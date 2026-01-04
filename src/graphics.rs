@@ -18,9 +18,7 @@ impl<'a> Palette<'a> {
             .ok_or("Palette data too short")?;
         let (chunks, remainder) = raw.as_chunks::<3>();
         debug_assert!(remainder.is_empty());
-        let colors: &[[u8; 3]; 256] = chunks
-            .try_into()
-            .map_err(|_| "Palette data malformed")?;
+        let colors: &[[u8; 3]; 256] = chunks.try_into().map_err(|_| "Palette data malformed")?;
 
         Ok(Self { colors })
     }
@@ -30,7 +28,9 @@ impl<'a> Palette<'a> {
     }
 
     pub fn get_rgba(&self, index: usize) -> Option<[u8; 4]> {
-        self.colors.get(index).map(|rgb| [rgb[0], rgb[1], rgb[2], 255])
+        self.colors
+            .get(index)
+            .map(|rgb| [rgb[0], rgb[1], rgb[2], 255])
     }
 }
 
@@ -41,7 +41,6 @@ impl<'a> TryFrom<&'a [u8]> for Palette<'a> {
         Palette::from_bytes(value)
     }
 }
-
 
 pub struct ColorMap<'a> {
     map: &'a [[u8; 256]; 34],
@@ -63,15 +62,74 @@ impl<'a> ColorMap<'a> {
             .ok_or("Color map data too short")?;
         let (chunks, remainder) = raw.as_chunks::<256>();
         debug_assert!(remainder.is_empty());
-        let map: &[[u8; 256]; 34] = chunks
-            .try_into()
-            .map_err(|_| "Color map data malformed")?;
+        let map: &[[u8; 256]; 34] = chunks.try_into().map_err(|_| "Color map data malformed")?;
 
         Ok(Self { map })
     }
 
     pub fn get_map_by(&self, index: usize) -> Option<&[u8; 256]> {
         self.map.get(index)
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for ColorMap<'a> {
+    type Error = Error;
+
+    fn try_from(value: &'a [u8]) -> std::result::Result<Self, Self::Error> {
+        ColorMap::from_bytes(value)
+    }
+}
+
+pub trait PaletteMapper<'a> {
+    fn remap_color(&self, index: u8) -> Option<&'a [u8; 3]>;
+}
+
+/// A mapper that uses a palette and a colormap to remap colors
+/// from one palette index to another.
+/// Given an input index, it looks up the corresponding index in the colormap,
+/// then retrieves the RGB color from the palette using that index.
+pub struct PaletteColorMapMapper<'a> {
+    palette: &'a Palette<'a>,
+    colormap: &'a [u8; 256],
+}
+
+impl<'a> PaletteColorMapMapper<'a> {
+
+    /// Creates a new PaletteColorMapMapper with the given palette, colormap, and map index.
+    /// Returns an error if the map index is out of bounds.
+    ///
+    /// # Arguments
+    /// * `palette` - A reference to the Palette to use for color lookup.
+    /// * `colormap` - A reference to the ColorMap to use for index mapping.
+    /// * `map_index` - The index of the colormap to use.
+    ///
+    /// # Errors
+    /// Returns an error if the map index is out of bounds.
+    pub fn new(
+        palette: &'a Palette<'a>,
+        colormap: &'a ColorMap<'a>,
+        map_index: usize,
+    ) -> Result<Self> {
+        let colormap = colormap
+            .get_map_by(map_index)
+            .ok_or("Colormap index out of bounds")?;
+        Ok(Self { palette, colormap })
+    }
+}
+
+impl<'a> PaletteMapper<'a> for PaletteColorMapMapper<'a> {
+    /// Remaps a color index using the colormap and retrieves the RGB color from the palette.
+    /// Returns None if the index is out of bounds.
+    ///
+    /// # Arguments
+    /// * `index` - The input color index to remap.
+    ///
+    /// # Returns
+    /// the RGB color corresponding to the remapped index,
+    /// or None if the index is out of bounds.
+    fn remap_color(&self, index: u8) -> Option<&'a [u8; 3]> {
+        let mapped_index = *self.colormap.get(index as usize)?;
+        self.palette.get_rgb(mapped_index as usize)
     }
 }
 
@@ -127,8 +185,23 @@ mod tests {
     fn colormap_can_get_map_by_index() {
         let data: Vec<u8> = (0..(34 * 256)).map(|val: u16| (val % 256) as u8).collect();
         let colormap = ColorMap::from_bytes(&data).unwrap();
-        let expected_map: [u8; 256] = (0..=255).map(|val: u8| val).collect::<Vec<u8>>().try_into().unwrap();
+        let expected_map: [u8; 256] = (0..=255)
+            .map(|val: u8| val)
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
         assert_eq!(colormap.get_map_by(0), Some(&expected_map));
         assert_eq!(colormap.get_map_by(33), Some(&expected_map));
+    }
+
+    #[test]
+    fn palette_colormap_mapper_can_remap_color() {
+        let palette_data: Vec<u8> = (0..768).map(|val: u16| (val % 256) as u8).collect();
+        let palette = Palette::from_bytes(&palette_data).unwrap();
+        let colormap_data: Vec<u8> = (0..(34 * 256)).rev().map(|val: u16| (val % 256) as u8).collect();
+        let colormap = ColorMap::from_bytes(&colormap_data).unwrap();
+        let mapper = PaletteColorMapMapper::new(&palette, &colormap, 0).unwrap();
+        assert_eq!(mapper.remap_color(0), Some(&[253, 254, 255]));
+        assert_eq!(mapper.remap_color(255), Some(&[0, 1, 2]));
     }
 }

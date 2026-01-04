@@ -1,3 +1,4 @@
+use wad_rs::graphics::{ColorMap, Palette, PaletteColorMapMapper};
 use wad_rs::index::LumpNode;
 
 fn main() {
@@ -11,7 +12,15 @@ fn main() {
         _ => panic!("PLAYPAL is not a lump"),
     };
     let palette_data = lump_ref.data();
-    let palette = wad_rs::graphics::Palette::try_from(palette_data).unwrap();
+    let palette = Palette::try_from(palette_data).unwrap();
+
+    let colormap_lump = wad.get_lump(Vec::new(), "COLORMAP").unwrap();
+    let lump_ref = match colormap_lump {
+        LumpNode::Lump { lump, .. } => lump,
+        _ => panic!("COLORMAP is not a lump"),
+    };
+    let colormap_data = lump_ref.data();
+    let colormap = ColorMap::from_bytes(colormap_data).unwrap();
 
     let index = {
         let idx = wad.get_lump(Vec::new(), "S_START").unwrap();
@@ -41,7 +50,8 @@ fn main() {
         // );
 
         let file = std::fs::File::create(format!("assets/img/{}.png", name.replace("/", "_"))).unwrap();
-        let data = sprite.rgba_pixel_buffer(&palette).unwrap();
+        let remapper = PaletteColorMapMapper::new(&palette, &colormap, 15).unwrap();
+        let data = sprite.rgba_pixel_buffer(&remapper).unwrap();
         let mut encoder = png::Encoder::new(file, sprite.width() as u32, sprite.height() as u32);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);

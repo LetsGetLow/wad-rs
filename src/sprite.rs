@@ -1,4 +1,4 @@
-use crate::graphics::Palette;
+use crate::graphics::{ColorMap, Palette, PaletteMapper};
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
@@ -99,7 +99,7 @@ impl<'a> Sprite<'a> {
         self.lump_data.len()
     }
 
-    pub fn rgba_pixel_buffer(&self, palette: &Palette) -> Result<Vec<u8>> {
+    pub fn rgba_pixel_buffer<T:PaletteMapper<'a>>(&self, palette_remapper: &T) -> Result<Vec<u8>> {
         let w = self.width() as usize;
         let h = self.height() as usize;
 
@@ -166,14 +166,15 @@ impl<'a> Sprite<'a> {
                 }
 
                 let pixel_data = &lump[data_start..data_end];
-                for (dy, &index) in pixel_data.iter().enumerate() {
+                for (dy, &color_index) in pixel_data.iter().enumerate() {
                     let y = row_start + dy;
                     let buffer_pos = (y * w + row) * 4;
+
+                    let rgb = palette_remapper.remap_color(color_index).ok_or("color index out of bounds")?;
+                    let rgba =  [rgb[0], rgb[1], rgb[2], 255];
+
                     pixel_buffer[buffer_pos..buffer_pos + 4].copy_from_slice(
-                        palette
-                            .get_rgba(index as usize)
-                            .ok_or("palette index out of bounds")?
-                            .as_ref(),
+                        &rgba
                     );
                 }
                 cursor = data_end + 1;
@@ -195,7 +196,24 @@ impl<'a> Sprite<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
     use super::*;
+    static DUMMY_GRAY_PALETTE: LazyLock<[[u8; 3]; 256]> = LazyLock::new(|| {
+        let mut colors = [[0u8; 3]; 256];
+        for (value, entry) in colors.iter_mut().enumerate() {
+            let shade = value as u8;
+            *entry = [shade, shade, shade];
+        }
+        colors
+    });
+
+    struct DummyPaletteMapper;
+
+    impl<'a> PaletteMapper<'a> for DummyPaletteMapper {
+        fn remap_color(&self, index: u8) -> Option<&'a [u8; 3]> {
+            DUMMY_GRAY_PALETTE.get(index as usize)
+        }
+    }
 
     #[test]
     fn sprite_header_can_extract_header_data() {
@@ -228,9 +246,9 @@ mod tests {
         data.extend(&0x00000020u32.to_le_bytes()); // offset beyond data
         data.extend(&0x00000020u32.to_le_bytes());
         let sprite = Sprite::new(&data).unwrap();
-        let palette_data: Vec<u8> = (0..768).map(|val: u16| (val % 256) as u8).collect();
-        let palette = Palette::try_from(palette_data.as_slice()).unwrap();
-        let result = sprite.rgba_pixel_buffer(&palette);
+
+        let remapper = DummyPaletteMapper;
+        let result = sprite.rgba_pixel_buffer(&remapper);
         assert!(result.is_err());
     }
 
@@ -247,9 +265,9 @@ mod tests {
         data.push(255); // pixel index 255 (valid)
         data.push(0xFF); // end of column
         let sprite = Sprite::new(&data).unwrap();
-        let palette_data: Vec<u8> = (0..768).map(|val: u16| (val % 256) as u8).collect();
-        let palette = Palette::try_from(palette_data.as_slice()).unwrap();
-        let result = sprite.rgba_pixel_buffer(&palette);
+
+        let remapper = DummyPaletteMapper;
+        let result = sprite.rgba_pixel_buffer(&remapper);
         assert!(result.is_err());
     }
 
@@ -282,12 +300,15 @@ mod tests {
         data.push(0xFF); // end of column
 
         let sprite = Sprite::new(&data).unwrap();
-        let palette_data: Vec<u8> = (0..768).map(|val: u16| (val % 256) as u8).collect();
-        let palette = Palette::try_from(palette_data.as_slice()).unwrap();
-        let pixel_buffer = sprite.rgba_pixel_buffer(&palette).unwrap();
 
-        let expected_buffer = vec![3, 4, 5, 255, 9, 10, 11, 255, 6, 7, 8, 255, 12, 13, 14, 255];
-
+        let remapper = DummyPaletteMapper;
+        let result = sprite.rgba_pixel_buffer(&remapper);
+        assert!(result.is_ok());
+        let pixel_buffer = result.unwrap();
+        let expected_buffer: Vec<u8> = vec![
+            1, 1, 1, 255, 3, 3, 3, 255, // row 0
+            2, 2, 2, 255, 4, 4, 4, 255, // row 1
+        ];
         assert_eq!(pixel_buffer, expected_buffer);
     }
 }
