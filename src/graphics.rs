@@ -32,7 +32,6 @@ impl<'a> Palette<'a> {
     pub fn get_rgba(&self, index: usize) -> Option<[u8; 4]> {
         self.colors.get(index).map(|rgb| [rgb[0], rgb[1], rgb[2], 255])
     }
-
 }
 
 impl<'a> TryFrom<&'a [u8]> for Palette<'a> {
@@ -40,6 +39,39 @@ impl<'a> TryFrom<&'a [u8]> for Palette<'a> {
 
     fn try_from(value: &'a [u8]) -> std::result::Result<Self, Self::Error> {
         Palette::from_bytes(value)
+    }
+}
+
+
+pub struct ColorMap<'a> {
+    map: &'a [[u8; 256]; 34],
+}
+
+impl<'a> ColorMap<'a> {
+    pub const NUM_MAPS: usize = 34;
+    pub const NUM_COLORS: usize = 256;
+
+    pub const MAP_DATA_SIZE: usize = Self::NUM_COLORS * Self::NUM_MAPS;
+    pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
+        if data.len() < Self::MAP_DATA_SIZE {
+            return Err("Color map data too short".into());
+        }
+
+        const COLORMAP_BYTES: usize = 34 * 256;
+        let raw = data
+            .first_chunk::<{ COLORMAP_BYTES }>()
+            .ok_or("Color map data too short")?;
+        let (chunks, remainder) = raw.as_chunks::<256>();
+        debug_assert!(remainder.is_empty());
+        let map: &[[u8; 256]; 34] = chunks
+            .try_into()
+            .map_err(|_| "Color map data malformed")?;
+
+        Ok(Self { map })
+    }
+
+    pub fn get_map_by(&self, index: usize) -> Option<&[u8; 256]> {
+        self.map.get(index)
     }
 }
 
@@ -75,5 +107,28 @@ mod tests {
         let palette = Palette::from_bytes(&data).unwrap();
         assert_eq!(palette.get_rgba(0), Some([0, 1, 2, 255]));
         assert_eq!(palette.get_rgba(255), Some([253, 254, 255, 255]));
+    }
+
+    #[test]
+    fn colormap_can_be_created_from_bytes() {
+        let data: Vec<u8> = (0..(34 * 256)).map(|val: u16| (val % 256) as u8).collect();
+        let colormap = ColorMap::from_bytes(&data).unwrap();
+        assert_eq!(colormap.map.len(), 34);
+    }
+
+    #[test]
+    fn colormap_creation_fails_with_short_data() {
+        let data: Vec<u8> = (0..500).map(|val: u16| (val % 256) as u8).collect();
+        let result = ColorMap::from_bytes(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn colormap_can_get_map_by_index() {
+        let data: Vec<u8> = (0..(34 * 256)).map(|val: u16| (val % 256) as u8).collect();
+        let colormap = ColorMap::from_bytes(&data).unwrap();
+        let expected_map: [u8; 256] = (0..=255).map(|val: u8| val).collect::<Vec<u8>>().try_into().unwrap();
+        assert_eq!(colormap.get_map_by(0), Some(&expected_map));
+        assert_eq!(colormap.get_map_by(33), Some(&expected_map));
     }
 }
