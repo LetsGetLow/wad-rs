@@ -6,15 +6,21 @@ pub struct Palette<'a> {
     colors: &'a [[u8; 3]; 256],
 }
 
-impl Palette<'_> {
-    pub fn from_bytes(data: &[u8]) -> Result<Self> {
+impl<'a> Palette<'a> {
+    pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
         if data.len() < 768 {
             return Err("Palette data too short".into());
         }
 
-        // SAFETY: We are asserting that the data slice has at least 3 * 256 (768) bytes,
-        // which is enough to hold 256 RGB entries (3 bytes each).
-        let colors = unsafe { &*(data.as_ptr() as *const [[u8; 3]; 256]) };
+        const PALETTE_BYTES: usize = 3 * 256;
+        let raw = data
+            .first_chunk::<{ PALETTE_BYTES }>()
+            .ok_or("Palette data too short")?;
+        let (chunks, remainder) = raw.as_chunks::<3>();
+        debug_assert!(remainder.is_empty());
+        let colors: &[[u8; 3]; 256] = chunks
+            .try_into()
+            .map_err(|_| "Palette data malformed")?;
 
         Ok(Self { colors })
     }
@@ -29,10 +35,10 @@ impl Palette<'_> {
 
 }
 
-impl TryFrom<&[u8]> for Palette<'_> {
+impl<'a> TryFrom<&'a [u8]> for Palette<'a> {
     type Error = Error;
 
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &'a [u8]) -> std::result::Result<Self, Self::Error> {
         Palette::from_bytes(value)
     }
 }
