@@ -8,23 +8,20 @@ use wad_rs::lump::LumpRef;
 const WAD_DATA: &[u8] = include_bytes!("../assets/wad/freedoom1.wad").as_slice();
 
 fn bench_wad_from_bytes(b: &mut Criterion) {
-    let wad_data: &[u8] = WAD_DATA;
-
     let mut group = b.benchmark_group("Wad from_bytes");
-    group.throughput(Throughput::Bytes(wad_data.len() as u64));
+    group.throughput(Throughput::Bytes(WAD_DATA.len() as u64));
     group.sample_size(100);
 
     group.bench_function("index_lumps", |b| {
         b.iter(|| {
-            WadIndex::from_bytes("freedoom1.wad".to_string(), &wad_data).unwrap();
+            WadIndex::from_bytes("freedoom1.wad".to_string(), WAD_DATA).unwrap();
         })
     });
     group.finish();
 }
 
 fn bench_converting_sprites(b: &mut Criterion) {
-    let wad_data = WAD_DATA;
-    let wad = WadIndex::from_bytes("freedoom2.wad".to_string(), &wad_data).unwrap();
+    let wad = WadIndex::from_bytes("freedoom2.wad".to_string(), WAD_DATA).unwrap();
     let sprite_index = match wad.get_lump(Vec::new(), "S_START").unwrap() {
         LumpNode::Namespace { children, .. } => children,
         _ => panic!("S_START is not a namespace"),
