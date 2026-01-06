@@ -1,9 +1,11 @@
+use crate::error::WADError;
+use crate::error::WADError::InvalidStartMarkerName;
 use crate::lump::LumpRef;
 use crate::tokenizer::{LumpToken, TokenIterator};
 use std::collections::HashMap;
 use std::iter::Peekable;
 
-type Error = Box<dyn std::error::Error>;
+type Error = WADError;
 type Result<T> = std::result::Result<T, Error>;
 
 /// Represents a node in the lump index, which can be either a namespace or a lump.
@@ -33,7 +35,6 @@ impl<'a> LumpNode<'a> {
     }
 }
 
-
 // main function to index tokens into a lump index
 pub fn index_tokens<'a>(tokens: TokenIterator<'a>) -> Result<HashMap<&'a str, LumpNode<'a>>> {
     let mut tokens = tokens.peekable();
@@ -54,13 +55,15 @@ pub fn index_tokens<'a>(tokens: TokenIterator<'a>) -> Result<HashMap<&'a str, Lu
                 continue;
             }
 
-            LumpToken::MarkerStart(marker) => {
-                let children = index_namespace(marker, &mut tokens)?;
-                let namespace_node = LumpNode::namespace(marker, children);
-                lumps.insert(marker, namespace_node);
+            LumpToken::MarkerStart(name) => {
+                let children = index_namespace(name, &mut tokens)?;
+                let namespace_node = LumpNode::namespace(name, children);
+                lumps.insert(name, namespace_node);
             }
-            LumpToken::MarkerEnd(_) => {
-                return Err("Unexpected end marker without matching start marker".into());
+            LumpToken::MarkerEnd(name) => {
+                return Err(WADError::EndMarkerWithoutStart {
+                    name: name.to_string(),
+                });
             }
         }
     }
@@ -110,34 +113,41 @@ fn index_namespace<'a>(
             }
 
             LumpToken::MarkerEnd(name) => {
-                let end_ns = name
-                    .strip_suffix("_END")
-                    .ok_or_else(|| format!("Invalid end marker name: {}", name))?;
+                let end_ns =
+                    name.strip_suffix("_END")
+                        .ok_or_else(|| WADError::InvalidEndMarkerName {
+                            name: name.to_string(),
+                        })?;
 
-                let start_ns = namespace
-                    .strip_suffix("_START")
-                    .ok_or_else(|| format!("Invalid start marker name: {}", namespace))?;
+                let start_ns =
+                    namespace
+                        .strip_suffix("_START")
+                        .ok_or_else(|| InvalidStartMarkerName {
+                            name: namespace.to_string(),
+                        })?;
 
                 return if start_ns == end_ns {
                     Ok(lumps)
                 } else {
-                    Err(format!(
-                        "Dangling end marker: expected '{}', found '{}'",
-                        start_ns, end_ns
-                    )
-                    .into())
+                    Err(WADError::DanglingEndMarker {
+                        expected: start_ns.to_string(),
+                        found: end_ns.to_string(),
+                    })
                 };
             }
 
-            _ => {} // ignore other tokens inside namespace
+            _ => {
+                return Err(WADError::TokenTypeNotAllowedInNamespace {
+                    name: namespace.to_string(),
+                });
+            }
         }
     }
 
     // should never reach here
-    Err(format!(
-        "Dangling start marker: no matching end marker for '{}'",
-        namespace
-    ).into())
+    Err(WADError::DanglingStartMarker {
+        name: namespace.to_string(),
+    })
 }
 
 #[cfg(test)]
@@ -272,7 +282,7 @@ mod tests {
 
     #[test]
     fn index_tokens_can_detect_dangling_end_marker() {
-        let (header, data) = fake_token_data(&[("LUMP1", &[0;10]), ("S_END", &[])]);
+        let (header, data) = fake_token_data(&[("LUMP1", &[0; 10]), ("S_END", &[])]);
         let tokens = TokenIterator::new(header, &data).unwrap();
         let result = index_tokens(tokens);
         assert!(result.is_err());

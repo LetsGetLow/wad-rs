@@ -12,4 +12,18 @@ pub enum WADError {
     TokenDataTooSmall,
     #[error("Unknown marker type encountered")]
     UnknownMarkerType,
+    #[error("Unexpected end of tokens while indexing")]
+    UnexpectedEndOfTokens,
+    #[error("Marker end found without matching start: {name}")]
+    EndMarkerWithoutStart { name:String },
+    #[error("Dangling end marker: expected '{expected}', found '{found}'")]
+    DanglingEndMarker { expected:String, found:String },
+    #[error("Dangling start marker: no matching end marker for '{name}'")]
+    DanglingStartMarker { name:String },
+    #[error("Invalid start marker name: {name}")]
+    InvalidStartMarkerName { name:String },
+    #[error("Invalid end marker name: {name}")]
+    InvalidEndMarkerName { name:String },
+    #[error("Token type not allowed in namespace: {name}")]
+    TokenTypeNotAllowedInNamespace { name:String },
 }
