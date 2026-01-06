@@ -15,17 +15,17 @@ pub enum WADError {
     #[error("Unexpected end of tokens while indexing")]
     UnexpectedEndOfTokens,
     #[error("Marker end found without matching start: {name}")]
-    EndMarkerWithoutStart { name:String },
+    EndMarkerWithoutStart { name: String },
     #[error("Dangling end marker: expected '{expected}', found '{found}'")]
-    DanglingEndMarker { expected:String, found:String },
+    DanglingEndMarker { expected: String, found: String },
     #[error("Dangling start marker: no matching end marker for '{name}'")]
-    DanglingStartMarker { name:String },
+    DanglingStartMarker { name: String },
     #[error("Invalid start marker name: {name}")]
-    InvalidStartMarkerName { name:String },
+    InvalidStartMarkerName { name: String },
     #[error("Invalid end marker name: {name}")]
-    InvalidEndMarkerName { name:String },
+    InvalidEndMarkerName { name: String },
     #[error("Token type not allowed in namespace: {name}")]
-    TokenTypeNotAllowedInNamespace { name:String },
+    TokenTypeNotAllowedInNamespace { name: String },
     #[error("Palette data too short")]
     PaletteDataTooShort,
     #[error("Palette data malformed")]
@@ -35,5 +35,25 @@ pub enum WADError {
     #[error("Color map data malformed")]
     ColorMapDataMalformed,
     #[error("Color index out of bounds: {index}")]
-    ColorIndexOutOfBounds { index:usize },
+    ColorIndexOutOfBounds { index: usize },
+    #[error("Sprite data too short")]
+    SpriteDataTooShort,
+    #[error("Sprite data malformed")]
+    SpriteDataMalformed,
+    #[error("Sprite column index out of bounds: {column}")]
+    SpriteColumnOutOfBounds { column: usize },
+    #[error("Unexpected end of sprite data at index: {index}")]
+    SpriteUnexpectedEndOfData { index: usize },
+    #[error("Sprite index overflow")]
+    SpriteIndexOverflow,
+    #[error("Sprite data out of bounds at index: {index}")]
+    SpriteDataOutOfBounds { index: usize },
+    #[error("Sprite missing trailing byte")]
+    SpriteMissingTrailingByte,
+    #[error("Sprite height overflow")]
+    SpriteHeightOverflow,
+    #[error("Sprite table size overflow")]
+    SpriteTableSizeOverflow,
+    #[error("Invalid color map index for sprite: {color_index}")]
+    SpriteInvalidColorMapIndex { color_index: u8 },
 }

@@ -1,6 +1,8 @@
+use crate::error::WADError;
+use crate::error::WADError::SpriteDataOutOfBounds;
 use crate::graphics::PaletteMapper;
 
-type Error = Box<dyn std::error::Error>;
+type Error = WADError;
 type Result<T> = std::result::Result<T, Error>;
 const HEADER_SIZE: usize = 8;
 
@@ -16,7 +18,7 @@ pub struct SpriteHeader {
 impl SpriteHeader {
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         if data.len() < HEADER_SIZE {
-            return Err("Sprite lump too small for header".into());
+            return Err(WADError::SpriteDataTooShort);
         }
 
         let width = u16::from_le_bytes([data[0], data[1]]);
@@ -99,13 +101,13 @@ impl<'a> Sprite<'a> {
         self.lump_data.len()
     }
 
-    pub fn rgba_pixel_buffer<T:PaletteMapper<'a>>(&self, palette_remapper: &T) -> Result<Vec<u8>> {
+    pub fn rgba_pixel_buffer<T: PaletteMapper<'a>>(&self, palette_remapper: &T) -> Result<Vec<u8>> {
         let w = self.width() as usize;
         let h = self.height() as usize;
 
         // sanity check
         if w == 0 || h == 0 {
-            return Err("sprite has zero width or height".into());
+            return Err(WADError::SpriteDataMalformed);
         }
 
         let lump = self.lump_data;
@@ -125,7 +127,9 @@ impl<'a> Sprite<'a> {
             ]) as usize;
 
             if column_offset >= lump.len() {
-                return Err("column offset out of range".into());
+                return Err(WADError::SpriteColumnOutOfBounds {
+                    column: column_offset,
+                });
             }
 
             let mut cursor = column_offset;
@@ -133,7 +137,7 @@ impl<'a> Sprite<'a> {
                 let topdelta = lump
                     .get(cursor)
                     .copied()
-                    .ok_or("unexpected end of post header")?;
+                    .ok_or(WADError::SpriteUnexpectedEndOfData { index: cursor })?;
                 cursor += 1;
 
                 // 0xFF marks the end of the column
@@ -144,25 +148,25 @@ impl<'a> Sprite<'a> {
                 let length = lump
                     .get(cursor)
                     .copied()
-                    .ok_or("unexpected end of post length")? as usize;
+                    .ok_or(WADError::SpriteUnexpectedEndOfData { index: cursor })? as usize;
                 cursor += 2;
 
                 let data_start = cursor;
                 let data_end = data_start
                     .checked_add(length)
-                    .ok_or("post length overflow")?;
+                    .ok_or(WADError::SpriteIndexOverflow)?;
 
                 if data_end >= lump.len() {
-                    return Err("post data out of range".into());
+                    return Err(SpriteDataOutOfBounds {index: lump.len()});
                 }
 
                 if data_end + 1 > lump.len() {
-                    return Err("post trailing byte missing".into());
+                    return Err(WADError::SpriteMissingTrailingByte);
                 }
 
                 let row_start = topdelta as usize;
                 if row_start >= h || row_start + length > h {
-                    return Err("post writes beyond sprite height".into());
+                    return Err(WADError::SpriteHeightOverflow);
                 }
 
                 let pixel_data = &lump[data_start..data_end];
@@ -170,12 +174,12 @@ impl<'a> Sprite<'a> {
                     let y = row_start + dy;
                     let buffer_pos = (y * w + row) * 4;
 
-                    let rgb = palette_remapper.remap_color(color_index).ok_or("color index out of bounds")?;
-                    let rgba =  [rgb[0], rgb[1], rgb[2], 255];
+                    let rgb = palette_remapper
+                        .remap_color(color_index)
+                        .ok_or(WADError::SpriteInvalidColorMapIndex { color_index })?;
+                    let rgba = [rgb[0], rgb[1], rgb[2], 255];
 
-                    pixel_buffer[buffer_pos..buffer_pos + 4].copy_from_slice(
-                        &rgba
-                    );
+                    pixel_buffer[buffer_pos..buffer_pos + 4].copy_from_slice(&rgba);
                 }
                 cursor = data_end + 1;
             }
@@ -185,9 +189,9 @@ impl<'a> Sprite<'a> {
     }
 
     fn check_size(w: usize, lump: &[u8]) -> Result<()> {
-        let column_table_bytes = w.checked_mul(4).ok_or("column table size overflow")?;
+        let column_table_bytes = w.checked_mul(4).ok_or(WADError::SpriteTableSizeOverflow)?;
         if lump.len() < HEADER_SIZE + column_table_bytes {
-            Err("sprite lump too small for column table".into())
+            Err(WADError::SpriteDataTooShort)
         } else {
             Ok(())
         }
