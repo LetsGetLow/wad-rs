@@ -1,8 +1,9 @@
+use crate::error::WADError;
 use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
 use std::io::Cursor;
 use std::sync::Arc;
 
-type Error = Box<dyn std::error::Error>;
+type Error = WADError;
 type Result<T> = std::result::Result<T, Error>;
 
 pub type SampleRate = u32;
@@ -62,18 +63,18 @@ impl SoundSample {
     /// - `Result<SoundSample>`: Ok(SoundSample) if successful, Err otherwise.
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         if data.len() < 8 {
-            return Err("Data too short to contain valid sound sample header".into());
+            return Err(WADError::SoundSampleDataTooShort);
         }
 
         if !Self::is_sound_sample(data) {
-            return Err("Invalid sound sample magic number".into());
+            return Err(WADError::SoundSampleUnknownFormat);
         }
 
         let sample_rate = u16::from_le_bytes([data[2], data[3]]) as u32;
         let sample_count = u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize;
         let sample_end = 8 + sample_count;
         if sample_end > data.len() {
-            return Err("Data too short to contain declared number of samples".into());
+            return Err(WADError::SoundSampleDataTooShort);
         }
 
         let sample = data[8..sample_end]
@@ -168,14 +169,14 @@ impl MusicSample {
         match format {
             MusicType::Mus => {
                 // TODO: need to get hands on WAD with MUS files to implement parser
-                Err("MUS format not supported yet".into())
+                Err(WADError::MusicSampleInvalidFormat)
             }
             MusicType::Midi => Ok(Self {
                 sample_rate: synthesizer.get_sample_rate(),
                 sample_channels: if is_stereo { 2 } else { 1 },
                 sample: synthesizer.synth(midi_data, is_stereo),
             }),
-            MusicType::Unknown => Err("Unknown music format".into()),
+            MusicType::Unknown => Err(WADError::MusicSampleInvalidFormat),
         }
     }
 }
@@ -205,8 +206,8 @@ impl MidiSynthesizer {
     const MAX_SAMPLE_RATE: SampleRate = 44_100;
 
     pub fn new(sound_font: &[u8], sample_rate: SampleRate) -> Result<Self> {
-        if sample_rate < Self::MIN_SAMPLE_RATE || sample_rate > Self::MAX_SAMPLE_RATE {
-            return Err("Sample rate out of bounds".into());
+        if !(Self::MIN_SAMPLE_RATE..=Self::MAX_SAMPLE_RATE).contains(&sample_rate) {
+            return Err(WADError::MidiSynthesizerInvalidSampleRate { sample_rate });
         }
         let sound_font = {
             let mut cursor = Cursor::new(sound_font);

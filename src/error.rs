@@ -1,3 +1,4 @@
+use rustysynth::{SoundFontError, SynthesizerError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -10,6 +11,7 @@ pub enum WADError {
     HeaderDataTooSmall,
     #[error("Data too small to contain valid lump directory")]
     TokenDataTooSmall,
+
     #[error("Unknown marker type encountered")]
     UnknownMarkerType,
     #[error("Unexpected end of tokens while indexing")]
@@ -26,16 +28,19 @@ pub enum WADError {
     InvalidEndMarkerName { name: String },
     #[error("Token type not allowed in namespace: {name}")]
     TokenTypeNotAllowedInNamespace { name: String },
+
     #[error("Palette data too short")]
     PaletteDataTooShort,
     #[error("Palette data malformed")]
     PaletteDataMalformed,
+
     #[error("Color map data too short")]
     ColorMapDataTooShort,
     #[error("Color map data malformed")]
     ColorMapDataMalformed,
     #[error("Color index out of bounds: {index}")]
     ColorIndexOutOfBounds { index: usize },
+
     #[error("Sprite data too short")]
     SpriteDataTooShort,
     #[error("Sprite data malformed")]
@@ -56,4 +61,20 @@ pub enum WADError {
     SpriteTableSizeOverflow,
     #[error("Invalid color map index for sprite: {color_index}")]
     SpriteInvalidColorMapIndex { color_index: u8 },
+
+    #[error("Sound sample data too short")]
+    SoundSampleDataTooShort,
+    #[error("Sound sample unknown format")]
+    SoundSampleUnknownFormat,
+
+
+    #[error("MIDI synthesizer invalid sample rate: {sample_rate}")]
+    MidiSynthesizerInvalidSampleRate { sample_rate: u32 },
+    #[error("MIDI synthesizer crate error: {source}")]
+    MidiSynthesizerCrateError {#[from] source: SynthesizerError },
+    #[error("MIDI synthesizer sound font error: {source}")]
+    MidiSynthesizerSoundFontError { #[from] source: SoundFontError },
+
+    #[error("Music sample invalid format")]
+    MusicSampleInvalidFormat
 }
