@@ -3,8 +3,9 @@ use crate::header::{Header, MagicString};
 use crate::index::{LumpNode, index_tokens};
 use crate::tokenizer::TokenIterator;
 use std::collections::HashMap;
+use crate::error::WADError;
 
-type Error = Box<dyn std::error::Error>;
+type Error = WADError;
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct WadIndex<'a> {
@@ -18,12 +19,12 @@ impl<'a> WadIndex<'a> {
     pub fn from_bytes(name: String, data: &'a [u8]) -> Result<Self> {
         let size = data.len();
         if size < 12 {
-            return Err("Data too small to contain valid WAD header".into());
+            return Err(WADError::HeaderDataTooSmall);
         }
-        let header_bytes: &[u8; 12] = data[0..12].try_into()?;
-        let header = Header::try_from(header_bytes).map_err(|e| e.to_string())?;
+        let header_bytes: &[u8; 12] = data[0..12].try_into().map_err(|_| WADError::HeaderDataTooSmall)?;
+        let header = Header::try_from(header_bytes)?;
         let file_type = header.identification;
-        let lump_index = index_tokens(TokenIterator::new(header, &data)?)?;
+        let lump_index = index_tokens(TokenIterator::new(header, data)?)?;
 
         let wad_index = WadIndex {
             header,

@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
+use crate::error::WADError;
 
-type Error = Box<dyn std::error::Error>;
+type Error = WADError;
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -16,7 +17,7 @@ impl TryFrom<&[u8; 4]> for MagicString {
         match bytes {
             b"IWAD" => Ok(MagicString::IWAD),
             b"PWAD" => Ok(MagicString::PWAD),
-            _ => Err("Invalid WAD header identification".into()),
+            _ => Err(WADError::InvalidHeaderIdentification),
         }
     }
 }
@@ -88,5 +89,6 @@ mod tests {
         ];
         let result = Header::try_from(&bytes);
         assert!(result.is_err());
+       assert!(matches!(result, Err(WADError::InvalidHeaderIdentification)))
     }
 }

@@ -9,5 +9,6 @@ pub mod index;
 pub mod audio;
 pub mod graphics;
 pub mod sprite;
+mod error;
 
 pub use wad::WadIndex;

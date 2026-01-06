@@ -57,7 +57,7 @@ mod tests {
     }
 
     #[test]
-    fn lump_ref_identifies_marker_lump() {
+    fn lump_ref_identifies_as_marker_lump() {
         let marker_lump_data: &[u8] = &[];
         let marker_lump_name = "MARKER";
         let marker_lump_ref = LumpRef::new(marker_lump_name, marker_lump_data);
