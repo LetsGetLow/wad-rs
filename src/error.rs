@@ -26,4 +26,14 @@ pub enum WADError {
     InvalidEndMarkerName { name:String },
     #[error("Token type not allowed in namespace: {name}")]
     TokenTypeNotAllowedInNamespace { name:String },
+    #[error("Palette data too short")]
+    PaletteDataTooShort,
+    #[error("Palette data malformed")]
+    PaletteDataMalformed,
+    #[error("Color map data too short")]
+    ColorMapDataTooShort,
+    #[error("Color map data malformed")]
+    ColorMapDataMalformed,
+    #[error("Color index out of bounds: {index}")]
+    ColorIndexOutOfBounds { index:usize },
 }

@@ -1,4 +1,6 @@
-type Error = Box<dyn std::error::Error>;
+use crate::error::WADError;
+
+type Error = WADError;
 type Result<T> = std::result::Result<T, Error>;
 
 /// Palette represents a 256-color palette, where each color is represented by 3 bytes (RGB).
@@ -17,9 +19,9 @@ impl<'a> Palette<'a> {
     pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
         let raw = data
             .first_chunk::<{ Palette::SIZE }>()
-            .ok_or("Palette data too short")?;
+            .ok_or(WADError::PaletteDataTooShort)?;
         let (chunks, _) = raw.as_chunks::<3>();
-        let colors: &[[u8; 3]; 256] = chunks.try_into().map_err(|_| "Palette data malformed")?;
+        let colors: &[[u8; 3]; 256] = chunks.try_into().map_err(|_| WADError::PaletteDataMalformed)?;
 
         Ok(Self { colors })
     }
@@ -58,9 +60,9 @@ impl<'a> ColorMap<'a> {
     pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
         let raw = data
             .first_chunk::<{ ColorMap::SIZE }>()
-            .ok_or("Color map data too short")?;
+            .ok_or(WADError::ColorMapDataTooShort)?;
         let (chunks, _) = raw.as_chunks::<256>();
-        let map: &[[u8; 256]; 34] = chunks.try_into().map_err(|_| "Color map data malformed")?;
+        let map: &[[u8; 256]; 34] = chunks.try_into().map_err(|_| WADError::ColorMapDataMalformed)?;
 
         Ok(Self { map })
     }
@@ -77,7 +79,7 @@ impl<'a> TryFrom<&'a [u8]> for ColorMap<'a> {
     /// Expects the data to be at least 8704 bytes (34 maps * 256 bytes per map).
     /// # Errors
     /// Returns an error if the data is too short or malformed.
-    fn try_from(value: &'a [u8]) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &'a [u8]) -> Result<Self> {
         ColorMap::from_bytes(value)
     }
 }
@@ -114,7 +116,7 @@ impl<'a> PaletteColorMapMapper<'a> {
     ) -> Result<Self> {
         let colormap = colormap
             .get_map_by(map_index)
-            .ok_or("Colormap index out of bounds")?;
+            .ok_or(WADError::ColorIndexOutOfBounds {index: map_index})?;
         Ok(Self { palette, colormap })
     }
 }
