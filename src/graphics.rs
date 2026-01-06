@@ -8,14 +8,15 @@ pub struct Palette<'a> {
 }
 
 impl<'a> Palette<'a> {
+    const SIZE: usize = 3 * 256;
+
     /// Creates a Palette from a byte slice.
     /// Expects the data to be at least 768 bytes (256 colors * 3 bytes per color).
     /// # Errors
     /// Returns an error if the data is too short or malformed.
     pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
-        const PALETTE_BYTES: usize = 3 * 256;
         let raw = data
-            .first_chunk::<{ PALETTE_BYTES }>()
+            .first_chunk::<{ Palette::SIZE }>()
             .ok_or("Palette data too short")?;
         let (chunks, _) = raw.as_chunks::<3>();
         let colors: &[[u8; 3]; 256] = chunks.try_into().map_err(|_| "Palette data malformed")?;
@@ -51,13 +52,12 @@ pub struct ColorMap<'a> {
 
 impl<'a> ColorMap<'a> {
     pub const NUM_MAPS: usize = 34;
-    pub const NUM_COLORS: usize = 256;
+    pub const NUM_COLORS_PER_MAP: usize = 256;
+    pub const SIZE: usize = ColorMap::NUM_COLORS_PER_MAP * ColorMap::NUM_MAPS;
 
-    pub const MAP_DATA_SIZE: usize = Self::NUM_COLORS * Self::NUM_MAPS;
     pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
-        const COLORMAP_BYTES: usize = 34 * 256;
         let raw = data
-            .first_chunk::<{ COLORMAP_BYTES }>()
+            .first_chunk::<{ ColorMap::SIZE }>()
             .ok_or("Color map data too short")?;
         let (chunks, _) = raw.as_chunks::<256>();
         let map: &[[u8; 256]; 34] = chunks.try_into().map_err(|_| "Color map data malformed")?;
@@ -97,7 +97,6 @@ pub struct PaletteColorMapMapper<'a> {
 }
 
 impl<'a> PaletteColorMapMapper<'a> {
-
     /// Creates a new PaletteColorMapMapper with the given palette, colormap, and map index.
     /// Returns an error if the map index is out of bounds.
     ///
@@ -201,7 +200,10 @@ mod tests {
     fn palette_colormap_mapper_can_remap_color() {
         let palette_data: Vec<u8> = (0..768).map(|val: u16| (val % 256) as u8).collect();
         let palette = Palette::from_bytes(&palette_data).unwrap();
-        let colormap_data: Vec<u8> = (0..(34 * 256)).rev().map(|val: u16| (val % 256) as u8).collect();
+        let colormap_data: Vec<u8> = (0..(34 * 256))
+            .rev()
+            .map(|val: u16| (val % 256) as u8)
+            .collect();
         let colormap = ColorMap::from_bytes(&colormap_data).unwrap();
         let mapper = PaletteColorMapMapper::new(&palette, &colormap, 0).unwrap();
         assert_eq!(mapper.remap_color(0), Some(&[253, 254, 255]));
