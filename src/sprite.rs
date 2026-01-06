@@ -1,4 +1,4 @@
-use crate::graphics::{ColorMap, Palette, PaletteMapper};
+use crate::graphics::PaletteMapper;
 
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
@@ -196,8 +196,8 @@ impl<'a> Sprite<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::LazyLock;
     use super::*;
+    use std::sync::LazyLock;
     static DUMMY_GRAY_PALETTE: LazyLock<[[u8; 3]; 256]> = LazyLock::new(|| {
         let mut colors = [[0u8; 3]; 256];
         for (value, entry) in colors.iter_mut().enumerate() {
