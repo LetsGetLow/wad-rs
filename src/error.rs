@@ -71,7 +71,7 @@ pub enum WADError {
     #[error("MIDI synthesizer invalid sample rate: {sample_rate}")]
     MidiSynthesizerInvalidSampleRate { sample_rate: u32 },
     #[error("MIDI synthesizer crate error: {source}")]
-    MidiSynthesizerCrateError {#[from] source: SynthesizerError },
+    MidiSynthesizerError {#[from] source: SynthesizerError },
     #[error("MIDI synthesizer sound font error: {source}")]
     MidiSynthesizerSoundFontError { #[from] source: SoundFontError },
 

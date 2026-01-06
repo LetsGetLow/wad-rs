@@ -46,6 +46,7 @@ impl SpriteHeader {
 /// - Bytes 2-3: Height (u16, little-endian)
 /// - Bytes 4-5: Left offset (i16, little-endian)
 /// - Bytes 6-7: Top offset (i16, little-endian)
+///
 /// Following the header is a column offset table, which contains
 /// 4-byte little-endian offsets for each column of the sprite image data.
 /// Each column consists of a series of "posts", where each post has:

@@ -1,9 +1,9 @@
 use crate::audio::SoundSample;
+use crate::error::WADError;
 use crate::header::{Header, MagicString};
 use crate::index::{LumpNode, index_tokens};
 use crate::tokenizer::TokenIterator;
 use std::collections::HashMap;
-use crate::error::WADError;
 
 type Error = WADError;
 type Result<T> = std::result::Result<T, Error>;
@@ -21,7 +21,9 @@ impl<'a> WadIndex<'a> {
         if size < 12 {
             return Err(WADError::HeaderDataTooSmall);
         }
-        let header_bytes: &[u8; 12] = data[0..12].try_into().map_err(|_| WADError::HeaderDataTooSmall)?;
+        let header_bytes: &[u8; 12] = data[0..12]
+            .try_into()
+            .map_err(|_| WADError::HeaderDataTooSmall)?;
         let header = Header::try_from(header_bytes)?;
         let file_type = header.identification;
         let lump_index = index_tokens(TokenIterator::new(header, data)?)?;
@@ -47,9 +49,7 @@ impl<'a> WadIndex<'a> {
     pub fn get_lump(&'_ self, namespaces: Vec<&str>, name: &str) -> Option<&LumpNode<'a>> {
         let mut current_index = &self.lump_index;
         for namespace in namespaces {
-            if let Some(LumpNode::Namespace { children, .. }) =
-                current_index.get(namespace)
-            {
+            if let Some(LumpNode::Namespace { children, .. }) = current_index.get(namespace) {
                 current_index = children;
             } else {
                 return None;
@@ -59,13 +59,11 @@ impl<'a> WadIndex<'a> {
     }
 
     pub fn get_sound_sample(&self, name: &str) -> Result<Option<SoundSample>> {
-        if let Some(lump_node) = self.lump_index.get(name) {
-            if let LumpNode::Lump { lump, .. } = lump_node {
-                let lump_data = lump.data();
-                Ok(Some(SoundSample::try_from(lump_data)?))
-            } else {
-                Ok(None)
-            }
+        if let Some(lump_node) = self.lump_index.get(name)
+            && let LumpNode::Lump { lump, .. } = lump_node
+        {
+            let lump_data = lump.data();
+            Ok(Some(SoundSample::try_from(lump_data)?))
         } else {
             Ok(None)
         }
