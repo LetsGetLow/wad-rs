@@ -1,32 +1,34 @@
 type Error = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Error>;
 
+/// Palette represents a 256-color palette, where each color is represented by 3 bytes (RGB).
 #[derive(Debug, Clone)]
 pub struct Palette<'a> {
     colors: &'a [[u8; 3]; 256],
 }
 
 impl<'a> Palette<'a> {
+    /// Creates a Palette from a byte slice.
+    /// Expects the data to be at least 768 bytes (256 colors * 3 bytes per color).
+    /// # Errors
+    /// Returns an error if the data is too short or malformed.
     pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
-        if data.len() < 768 {
-            return Err("Palette data too short".into());
-        }
-
         const PALETTE_BYTES: usize = 3 * 256;
         let raw = data
             .first_chunk::<{ PALETTE_BYTES }>()
             .ok_or("Palette data too short")?;
-        let (chunks, remainder) = raw.as_chunks::<3>();
-        debug_assert!(remainder.is_empty());
+        let (chunks, _) = raw.as_chunks::<3>();
         let colors: &[[u8; 3]; 256] = chunks.try_into().map_err(|_| "Palette data malformed")?;
 
         Ok(Self { colors })
     }
 
+    /// Retrieves the RGB color at the specified index.
     pub fn get_rgb(&self, index: usize) -> Option<&[u8; 3]> {
         self.colors.get(index)
     }
 
+    /// Retrieves the RGBA color at the specified index, with alpha set to 255.
     pub fn get_rgba(&self, index: usize) -> Option<[u8; 4]> {
         self.colors
             .get(index)
@@ -42,6 +44,7 @@ impl<'a> TryFrom<&'a [u8]> for Palette<'a> {
     }
 }
 
+/// A ColorMap contains multiple color maps, each mapping 256 palette indices.
 pub struct ColorMap<'a> {
     map: &'a [[u8; 256]; 34],
 }
@@ -52,16 +55,11 @@ impl<'a> ColorMap<'a> {
 
     pub const MAP_DATA_SIZE: usize = Self::NUM_COLORS * Self::NUM_MAPS;
     pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
-        if data.len() < Self::MAP_DATA_SIZE {
-            return Err("Color map data too short".into());
-        }
-
         const COLORMAP_BYTES: usize = 34 * 256;
         let raw = data
             .first_chunk::<{ COLORMAP_BYTES }>()
             .ok_or("Color map data too short")?;
-        let (chunks, remainder) = raw.as_chunks::<256>();
-        debug_assert!(remainder.is_empty());
+        let (chunks, _) = raw.as_chunks::<256>();
         let map: &[[u8; 256]; 34] = chunks.try_into().map_err(|_| "Color map data malformed")?;
 
         Ok(Self { map })
@@ -75,11 +73,16 @@ impl<'a> ColorMap<'a> {
 impl<'a> TryFrom<&'a [u8]> for ColorMap<'a> {
     type Error = Error;
 
+    /// Creates a ColorMap from a byte slice.
+    /// Expects the data to be at least 8704 bytes (34 maps * 256 bytes per map).
+    /// # Errors
+    /// Returns an error if the data is too short or malformed.
     fn try_from(value: &'a [u8]) -> std::result::Result<Self, Self::Error> {
         ColorMap::from_bytes(value)
     }
 }
 
+/// Map Palette indices by ColorMap  then to RGB colors
 pub trait PaletteMapper<'a> {
     fn remap_color(&self, index: u8) -> Option<&'a [u8; 3]>;
 }
@@ -106,8 +109,8 @@ impl<'a> PaletteColorMapMapper<'a> {
     /// # Errors
     /// Returns an error if the map index is out of bounds.
     pub fn new(
-        palette: &'a Palette<'a>,
-        colormap: &'a ColorMap<'a>,
+        palette: &'a Palette<'_>,
+        colormap: &'a ColorMap<'_>,
         map_index: usize,
     ) -> Result<Self> {
         let colormap = colormap
