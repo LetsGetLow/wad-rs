@@ -1,7 +1,8 @@
+use crate::error::WADError;
 use crate::header::Header;
 use crate::lump::{LUMP_ENTRY_LENGTH, LumpRef};
 
-type Error = Box<dyn std::error::Error>;
+type Error = WADError;
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,7 +43,7 @@ impl<'a> TryFrom<LumpRef<'a>> for LumpToken<'a> {
             } else if LumpToken::is_end_marker(name) {
                 Ok(LumpToken::MarkerEnd(name))
             } else {
-                Err("Unknown marker type".into())
+                Err(WADError::UnknownMarkerType)
             }
         } else {
             Ok(LumpToken::Lump(name, lump_ref))
@@ -61,7 +62,7 @@ impl<'a> TokenIterator<'a> {
         let directory_offset = header.info_table_offset as usize;
         let directory_end = directory_offset + (header.num_lumps as usize * LUMP_ENTRY_LENGTH);
         if data.len() < directory_end {
-            Err("Data too small to contain directory entries".into())
+            Err(WADError::TokenDataTooSmall)
         } else {
             Ok(TokenIterator {
                 data,
@@ -76,6 +77,7 @@ impl<'a> Iterator for TokenIterator<'a> {
     type Item = Result<LumpToken<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // TODO: Even though we checked bounds in new(), it could make sense to double-check here
         if self.directory_offset >= self.directory_end {
             return None;
         }
@@ -83,10 +85,11 @@ impl<'a> Iterator for TokenIterator<'a> {
         let entry_offset = self.directory_offset;
         self.directory_offset += LUMP_ENTRY_LENGTH;
 
+
+        let name_offset = entry_offset + 8;
+        let name_bytes = &self.data.get(name_offset..name_offset + 8)?; // should always work
         // Safety: We are reading exactly 8 bytes from a valid slice of data we checked in new()
         // the overall data length is at least directory_end
-        let name_offset = entry_offset + 8;
-        let name_bytes = &self.data[name_offset..name_offset + 8];
         let name = unsafe { std::str::from_utf8_unchecked(name_bytes) }.trim_end_matches('\0');
 
         let pos_bytes: [u8; 4] = self

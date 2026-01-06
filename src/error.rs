@@ -8,4 +8,8 @@ pub enum WADError {
     InvalidHeaderIdentification,
     #[error("Data too small to contain valid WAD header")]
     HeaderDataTooSmall,
+    #[error("Data too small to contain valid lump directory")]
+    TokenDataTooSmall,
+    #[error("Unknown marker type encountered")]
+    UnknownMarkerType,
 }
