@@ -1,3 +1,4 @@
+use std::hint::black_box;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use wad_rs::WadIndex;
 use wad_rs::graphics::PaletteColorMapMapper;
@@ -86,16 +87,20 @@ fn bench_converting_sprites(b: &mut Criterion) {
     group.sample_size(50);
     group.bench_function("convert_sprites", |b| {
         b.iter(|| {
+            let mut bytes_out = 0usize;
             for (_, lump_node) in sprite_index.iter() {
                 let lump_ref = match lump_node {
                     LumpNode::Lump { lump, .. } => lump,
                     _ => continue,
                 };
-                let _ = wad_rs::sprite::Sprite::new(lump_ref.data())
+                let buf = wad_rs::sprite::Sprite::new(lump_ref.data())
                     .unwrap()
                     .rgba_pixel_buffer(&remapper)
                     .unwrap();
+                bytes_out = bytes_out.wrapping_add(buf.len());
+                black_box(buf);
             }
+            black_box(bytes_out);
         })
     });
 
