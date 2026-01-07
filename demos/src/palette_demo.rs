@@ -1,10 +1,12 @@
+use wad_rs::audio::MidiSynthesizer;
 use wad_rs::graphics::ColorMap;
 use wad_rs::index::LumpNode;
 
 fn main() {
+    let mut synthesizer = MidiSynthesizer::new(include_bytes!("../../assets/microgm.sf2"), 16_000).unwrap();
     let wad_data = include_bytes!("../../assets/wad/freedoom1.wad");
     let wad =
-        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data).unwrap();
+        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data, &mut synthesizer).unwrap();
 
     let palette_node = wad.get_lump(Vec::new(), "PLAYPAL").unwrap();
     let palette_lump = match palette_node {

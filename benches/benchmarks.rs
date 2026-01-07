@@ -1,5 +1,6 @@
 use std::hint::black_box;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use wad_rs::audio::MidiSynthesizer;
 use wad_rs::WadIndex;
 use wad_rs::graphics::DefaultPaletteMapper;
 use wad_rs::index::LumpNode;
@@ -8,20 +9,22 @@ use wad_rs::lump::LumpRef;
 const WAD_DATA: &[u8] = include_bytes!("../assets/wad/freedoom1.wad").as_slice();
 
 fn bench_wad_from_bytes(b: &mut Criterion) {
+    let mut synthesizer = MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 16_000).unwrap();
     let mut group = b.benchmark_group("Wad from_bytes");
     group.throughput(Throughput::Bytes(WAD_DATA.len() as u64));
     group.sample_size(100);
 
     group.bench_function("index_lumps", |b| {
         b.iter(|| {
-            WadIndex::from_bytes("freedoom1.wad".to_string(), WAD_DATA).unwrap();
+            WadIndex::from_bytes("freedoom1.wad".to_string(), WAD_DATA, &mut synthesizer).unwrap();
         })
     });
     group.finish();
 }
 
 fn bench_converting_sprites(b: &mut Criterion) {
-    let wad = WadIndex::from_bytes("freedoom2.wad".to_string(), WAD_DATA).unwrap();
+    let mut synthesizer = MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 16_000).unwrap();
+    let wad = WadIndex::from_bytes("freedoom2.wad".to_string(), WAD_DATA, &mut synthesizer).unwrap();
     let sprite_index = match wad.get_lump(Vec::new(), "S_START").unwrap() {
         LumpNode::Namespace { children, .. } => children,
         _ => panic!("S_START is not a namespace"),
@@ -83,7 +86,8 @@ fn bench_converting_sprites(b: &mut Criterion) {
 }
 
 fn bench_converting_audio(b: &mut Criterion) {
-    let wad = WadIndex::from_bytes("freedoom1.wad".to_string(), WAD_DATA).unwrap();
+    let mut synthesizer = MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 16_000).unwrap();
+    let wad = WadIndex::from_bytes("freedoom1.wad".to_string(), WAD_DATA, &mut synthesizer).unwrap();
     let filtered_lumps: Vec<&LumpRef> = wad
         .get_lump_index()
         .iter()

@@ -2,12 +2,13 @@ use crate::audio::{MidiSynthesizer, MusicSample, SoundSample};
 use crate::error::WadError;
 use crate::header::Header;
 use crate::index::{index_tokens, LumpNode};
+use crate::sprite::Sprite;
 use crate::tokenizer::TokenIterator;
 use std::collections::HashMap;
-use crate::sprite::Sprite;
 
 type Error = WadError;
 type Result<T> = std::result::Result<T, Error>;
+
 
 /// WadIndex represents an indexed WAD file, containing its header information and a hierarchical
 /// index of lumps organized in namespaces. With no zero allocation for lump data access it provides
@@ -18,7 +19,8 @@ type Result<T> = std::result::Result<T, Error>;
 /// use wad_rs::WadIndex;
 ///
 /// let wad_data: &[u8] = include_bytes!("path/to/wadfile.wad");
-/// let wad = WadIndex::from_bytes("wadfile.wad".to_string(), wad_data).unwrap();
+/// let mut synthesizer = MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 16_000).unwrap();
+/// let wad = WadIndex::from_bytes("wadfile.wad".to_string(), wad_data, &mut synthesizer).unwrap();
 ///
 /// let header = wad.get_header();
 /// println!("WAD Type: {}", header.get_wad_type());
@@ -40,20 +42,20 @@ type Result<T> = std::result::Result<T, Error>;
 ///     println!("Sprite Width: {}, Height: {}", sprite.width(), sprite.height());
 /// }
 /// ```
-pub struct WadIndex<'a> {
+pub struct WadIndex<'a, 'b> {
     header: Header,
     name: String,
     lump_index: HashMap<&'a str, LumpNode<'a>>,
-    synthesizer: MidiSynthesizer,
+    synthesizer: &'b mut MidiSynthesizer,
 }
 
-impl<'a> WadIndex<'a> {
+impl<'a, 'b> WadIndex<'a, 'b> {
     const HEADER_SIZE: usize = 12;
 
     /// Create a WadIndex from raw WAD file bytes
     /// # Errors
     /// Returns an WadError if the data is too small to contain a valid WAD header
-    pub fn from_bytes(name: String, data: &'a [u8]) -> Result<Self> {
+    pub fn from_bytes(name: String, data: &'a [u8], synthesizer: &'b mut MidiSynthesizer) -> Result<Self> {
         let size = data.len();
         if size < Self::HEADER_SIZE {
             return Err(WadError::HeaderDataTooSmall);
@@ -63,7 +65,6 @@ impl<'a> WadIndex<'a> {
             .ok_or(WadError::HeaderDataTooSmall)?;
         let header = Header::try_from(header_bytes)?;
         let lump_index = index_tokens(TokenIterator::new(header, data)?)?;
-        let synthesizer = MidiSynthesizer::new(include_bytes!("../assets/microgm.sf2"), 16_000)?;
 
         let wad_index = WadIndex {
             header,
@@ -115,7 +116,7 @@ impl<'a> WadIndex<'a> {
         if let Some(lump_node) = self.lump_index.get(name)
             && let LumpNode::Lump { lump, .. } = lump_node
         {
-            let music_sample = MusicSample::from_bytes(&mut self.synthesizer, lump.data(), true)?;
+            let music_sample = MusicSample::from_bytes(self.synthesizer, lump.data(), true)?;
             Ok(Some(music_sample))
         } else {
             Ok(None)
@@ -123,16 +124,13 @@ impl<'a> WadIndex<'a> {
     }
 
     /// Get a sprite/patch by its name
-    pub fn get_sprite(&'a self, name: &str) -> Option<Result<Sprite<'a>>> {
-        match self.lump_index.get("S_START") {
-            Some(LumpNode::Namespace {children, ..}) => {
-                let node = children.get(name)?;
-                match node {
-                    LumpNode::Lump {lump,.. } => Some(Sprite::new(lump.data())),
-                    _ => None,
-                }
-            },
-            _ => None,
+    pub fn get_sprite(&'a self, name: &str) -> Result<Option<Sprite<'a>>> {
+        if let Some(LumpNode::Namespace { children, .. }) = self.lump_index.get("S_START")
+            && let Some(LumpNode::Lump { lump, .. }) = children.get(name)
+        {
+            Sprite::new(lump.data()).map(Some)
+        } else {
+            Ok(None)
         }
     }
 

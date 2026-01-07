@@ -1,9 +1,11 @@
+use wad_rs::audio::MidiSynthesizer;
 use wad_rs::index::LumpNode;
 use wad_rs::WadIndex;
 
 fn main() {
+    let mut synthesizer = MidiSynthesizer::new(include_bytes!("../../assets/microgm.sf2"), 16_000).unwrap();
     let wad_data = include_bytes!("../../assets/wad/freedoom2.wad");
-    let wad = WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data).unwrap();
+    let wad = WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data, &mut synthesizer).unwrap();
 
     for (idx, (name, map_node)) in wad.get_maps().unwrap().iter().enumerate() {
         let idx = idx + 1;

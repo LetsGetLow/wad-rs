@@ -77,5 +77,5 @@ pub enum WadError {
     MidiSynthesizerSoundFontError { #[from] source: SoundFontError },
 
     #[error("Music sample invalid format")]
-    MusicSampleInvalidFormat
+    MusicSampleInvalidFormat,
 }
