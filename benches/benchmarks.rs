@@ -1,7 +1,7 @@
 use std::hint::black_box;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use wad_rs::WadIndex;
-use wad_rs::graphics::PaletteColorMapMapper;
+use wad_rs::graphics::DefaultPaletteMapper;
 use wad_rs::index::LumpNode;
 use wad_rs::lump::LumpRef;
 
@@ -43,7 +43,7 @@ fn bench_converting_sprites(b: &mut Criterion) {
     let colormap_data = lump_ref.data();
     let colormap = wad_rs::graphics::ColorMap::from_bytes(colormap_data).unwrap();
 
-    let remapper = PaletteColorMapMapper::new(&palette, &colormap, 15).unwrap();
+    let remapper = DefaultPaletteMapper::new(&palette, &colormap, 15).unwrap();
 
     let total_pixels: u64 = sprite_index
         .iter()

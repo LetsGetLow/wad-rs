@@ -1,4 +1,4 @@
-use wad_rs::graphics::{ColorMap, Palette, PaletteColorMapMapper};
+use wad_rs::graphics::{ColorMap, Palette, DefaultPaletteMapper};
 use wad_rs::index::LumpNode;
 
 fn main() {
@@ -50,7 +50,7 @@ fn main() {
         // );
 
         let file = std::fs::File::create(format!("assets/img/{}.png", name.replace("/", "_"))).unwrap();
-        let remapper = PaletteColorMapMapper::new(&palette, &colormap, 15).unwrap();
+        let remapper = DefaultPaletteMapper::new(&palette, &colormap, 15).unwrap();
         let data = sprite.rgba_pixel_buffer(&remapper).unwrap();
         let mut encoder = png::Encoder::new(file, sprite.width() as u32, sprite.height() as u32);
         encoder.set_color(png::ColorType::Rgba);

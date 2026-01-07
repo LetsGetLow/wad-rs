@@ -93,13 +93,13 @@ pub trait PaletteMapper<'a> {
 /// from one palette index to another.
 /// Given an input index, it looks up the corresponding index in the colormap,
 /// then retrieves the RGB color from the palette using that index.
-pub struct PaletteColorMapMapper<'a> {
+pub struct DefaultPaletteMapper<'a> {
     palette: &'a Palette<'a>,
     colormap: &'a [u8; 256],
 }
 
-impl<'a> PaletteColorMapMapper<'a> {
-    /// Creates a new PaletteColorMapMapper with the given palette, colormap, and map index.
+impl<'a> DefaultPaletteMapper<'a> {
+    /// Creates a new DefaultPaletteMapper with the given palette, colormap, and map index.
     /// Returns an error if the map index is out of bounds.
     ///
     /// # Arguments
@@ -110,7 +110,7 @@ impl<'a> PaletteColorMapMapper<'a> {
     /// # Errors
     /// Returns an error if the map index is out of bounds.
     pub fn new(
-        palette: &'a Palette<'_>,
+        palette: &'a Palette<'a>,
         colormap: &'a ColorMap<'_>,
         map_index: usize,
     ) -> Result<Self> {
@@ -121,7 +121,7 @@ impl<'a> PaletteColorMapMapper<'a> {
     }
 }
 
-impl<'a> PaletteMapper<'a> for PaletteColorMapMapper<'a> {
+impl<'a> PaletteMapper<'a> for DefaultPaletteMapper<'a> {
     /// Remaps a color index using the colormap and retrieves the RGB color from the palette.
     /// Returns None if the index is out of bounds.
     ///
@@ -207,7 +207,7 @@ mod tests {
             .map(|val: u16| (val % 256) as u8)
             .collect();
         let colormap = ColorMap::from_bytes(&colormap_data).unwrap();
-        let mapper = PaletteColorMapMapper::new(&palette, &colormap, 0).unwrap();
+        let mapper = DefaultPaletteMapper::new(&palette, &colormap, 0).unwrap();
         assert_eq!(mapper.remap_color(0), Some(&[253, 254, 255]));
         assert_eq!(mapper.remap_color(255), Some(&[0, 1, 2]));
     }
