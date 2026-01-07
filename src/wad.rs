@@ -12,6 +12,34 @@ type Result<T> = std::result::Result<T, Error>;
 /// WadIndex represents an indexed WAD file, containing its header information and a hierarchical
 /// index of lumps organized in namespaces. With no zero allocation for lump data access it provides
 /// efficient retrieval of lumps by name and namespace.
+///
+/// Examples
+/// ```no_run
+/// use wad_rs::WadIndex;
+///
+/// let wad_data: &[u8] = include_bytes!("path/to/wadfile.wad");
+/// let wad = WadIndex::from_bytes("wadfile.wad".to_string(), wad_data).unwrap();
+///
+/// let header = wad.get_header();
+/// println!("WAD Type: {}", header.get_wad_type());
+///
+/// let lump_index = wad.get_lump_index();
+/// for (name, lump_node) in lump_index {
+///     println!("Lump Name: {}", name);
+/// }
+/// let sound_sample = wad.get_sound_sample("DSPISTOL").unwrap();
+/// if let Some(sample) = sound_sample {
+///     println!("Sound Sample Size: {} bytes", sample.sample().len() * std::mem::size_of::<f32>());
+/// }
+/// let music_sample = wad.get_music_sample("D_E1M1").unwrap();
+/// if let Some(sample) = music_sample {
+///     println!("Music Sample Size: {} bytes", sample.sample().len() * std::mem::size_of::<f32>());
+/// }
+/// let sprite = wad.get_sprite("PLAYA1").unwrap();
+/// if let Ok(sprite) = sprite {
+///     println!("Sprite Width: {}, Height: {}", sprite.width(), sprite.height());
+/// }
+/// ```
 pub struct WadIndex<'a> {
     header: Header,
     name: String,
