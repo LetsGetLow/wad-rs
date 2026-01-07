@@ -1,13 +1,10 @@
 extern crate core;
 
 use demos::AudioStream;
-use wad_rs::audio::{MidiSynthesizer, MusicSample};
-use wad_rs::index::LumpNode;
 
 fn main() {
     let wad_data = include_bytes!("../../assets/wad/freedoom1.wad");
-    let wad =
-        wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data).unwrap();
+    let mut wad = wad_rs::WadIndex::from_bytes("freedoom1.wad".to_string(), wad_data).unwrap();
 
     let index = wad.get_lump_index();
     let audio_stream = AudioStream::new();
@@ -18,27 +15,22 @@ fn main() {
             return;
         }
     };
+    let lump_names = index
+        .iter()
+        .filter(|&(name, _)| name.starts_with("D_"))
+        .map(|(name, _)| name.to_string())
+        .collect::<Vec<String>>();
 
-
-    let mut synthesizer =
-        MidiSynthesizer::new(include_bytes!("../../assets/microgm.sf2"), 44_100).unwrap();
-
-    for (name, lump_node) in index.iter() {
-        if name.starts_with("D_") {
-            let lump_ref = match lump_node {
-                LumpNode::Lump {lump, .. } => lump,
-                _ => continue,
-            };
-            assert!(wad_data.len() >= 8);
-            let data = lump_ref.data();
-            let sample = MusicSample::from_bytes(&mut synthesizer, data, true).unwrap();
-            audio_stream.append_music(sample.clone());
+    for name in lump_names {
+        let sample = wad.get_music_sample(&name).unwrap();
+        if let Some(sample) = sample {
             println!(
                 "Lump {name} : {} seconds (pcm size: {} bytes)",
                 sample.sample().len() as f32 / sample.sample_rate() as f32,
                 sample.sample().len() * size_of::<f32>()
             );
-        }
+            audio_stream.append_music(sample);
+        };
     }
     println!("Playing all samples");
     audio_stream.play();

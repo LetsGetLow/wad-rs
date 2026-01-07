@@ -1,6 +1,6 @@
-use crate::error::WADError;
+use crate::error::WadError;
 
-type Error = WADError;
+type Error = WadError;
 type Result<T> = std::result::Result<T, Error>;
 
 /// Palette represents a 256-color palette, where each color is represented by 3 bytes (RGB).
@@ -19,9 +19,9 @@ impl<'a> Palette<'a> {
     pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
         let raw = data
             .first_chunk::<{ Palette::SIZE }>()
-            .ok_or(WADError::PaletteDataTooShort)?;
+            .ok_or(WadError::PaletteDataTooShort)?;
         let (chunks, _) = raw.as_chunks::<3>();
-        let colors: &[[u8; 3]; 256] = chunks.try_into().map_err(|_| WADError::PaletteDataMalformed)?;
+        let colors: &[[u8; 3]; 256] = chunks.try_into().map_err(|_| WadError::PaletteDataMalformed)?;
 
         Ok(Self { colors })
     }
@@ -60,9 +60,9 @@ impl<'a> ColorMap<'a> {
     pub fn from_bytes(data: &'a [u8]) -> Result<Self> {
         let raw = data
             .first_chunk::<{ ColorMap::SIZE }>()
-            .ok_or(WADError::ColorMapDataTooShort)?;
+            .ok_or(WadError::ColorMapDataTooShort)?;
         let (chunks, _) = raw.as_chunks::<256>();
-        let map: &[[u8; 256]; 34] = chunks.try_into().map_err(|_| WADError::ColorMapDataMalformed)?;
+        let map: &[[u8; 256]; 34] = chunks.try_into().map_err(|_| WadError::ColorMapDataMalformed)?;
 
         Ok(Self { map })
     }
@@ -116,7 +116,7 @@ impl<'a> DefaultPaletteMapper<'a> {
     ) -> Result<Self> {
         let colormap = colormap
             .get_map_by(map_index)
-            .ok_or(WADError::ColorIndexOutOfBounds {index: map_index})?;
+            .ok_or(WadError::ColorIndexOutOfBounds {index: map_index})?;
         Ok(Self { palette, colormap })
     }
 }

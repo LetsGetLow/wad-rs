@@ -1,11 +1,11 @@
-use crate::error::WADError;
-use crate::error::WADError::InvalidStartMarkerName;
+use crate::error::WadError;
+use crate::error::WadError::InvalidStartMarkerName;
 use crate::lump::LumpRef;
 use crate::tokenizer::{LumpToken, TokenIterator};
 use std::collections::HashMap;
 use std::iter::Peekable;
 
-type Error = WADError;
+type Error = WadError;
 type Result<T> = std::result::Result<T, Error>;
 
 /// Represents a node in the lump index, which can be either a namespace or a lump.
@@ -61,7 +61,7 @@ pub fn index_tokens<'a>(tokens: TokenIterator<'a>) -> Result<HashMap<&'a str, Lu
                 lumps.insert(name, namespace_node);
             }
             LumpToken::MarkerEnd(name) => {
-                return Err(WADError::EndMarkerWithoutStart {
+                return Err(WadError::EndMarkerWithoutStart {
                     name: name.to_string(),
                 });
             }
@@ -115,7 +115,7 @@ fn index_namespace<'a>(
             LumpToken::MarkerEnd(name) => {
                 let end_ns =
                     name.strip_suffix("_END")
-                        .ok_or_else(|| WADError::InvalidEndMarkerName {
+                        .ok_or_else(|| WadError::InvalidEndMarkerName {
                             name: name.to_string(),
                         })?;
 
@@ -129,7 +129,7 @@ fn index_namespace<'a>(
                 return if start_ns == end_ns {
                     Ok(lumps)
                 } else {
-                    Err(WADError::DanglingEndMarker {
+                    Err(WadError::DanglingEndMarker {
                         expected: start_ns.to_string(),
                         found: end_ns.to_string(),
                     })
@@ -137,7 +137,7 @@ fn index_namespace<'a>(
             }
 
             _ => {
-                return Err(WADError::TokenTypeNotAllowedInNamespace {
+                return Err(WadError::TokenTypeNotAllowedInNamespace {
                     name: namespace.to_string(),
                 });
             }
@@ -145,7 +145,7 @@ fn index_namespace<'a>(
     }
 
     // should never reach here
-    Err(WADError::DanglingStartMarker {
+    Err(WadError::DanglingStartMarker {
         name: namespace.to_string(),
     })
 }

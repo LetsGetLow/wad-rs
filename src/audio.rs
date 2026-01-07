@@ -1,9 +1,9 @@
-use crate::error::WADError;
+use crate::error::WadError;
 use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
 use std::io::Cursor;
 use std::sync::Arc;
 
-type Error = WADError;
+type Error = WadError;
 type Result<T> = std::result::Result<T, Error>;
 
 pub type SampleRate = u32;
@@ -63,18 +63,18 @@ impl SoundSample {
     /// - `Result<SoundSample>`: Ok(SoundSample) if successful, Err otherwise.
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         if data.len() < 8 {
-            return Err(WADError::SoundSampleDataTooShort);
+            return Err(WadError::SoundSampleDataTooShort);
         }
 
         if !Self::is_sound_sample(data) {
-            return Err(WADError::SoundSampleUnknownFormat);
+            return Err(WadError::SoundSampleUnknownFormat);
         }
 
         let sample_rate = u16::from_le_bytes([data[2], data[3]]) as u32;
         let sample_count = u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize;
         let sample_end = 8 + sample_count;
         if sample_end > data.len() {
-            return Err(WADError::SoundSampleDataTooShort);
+            return Err(WadError::SoundSampleDataTooShort);
         }
 
         let sample = data[8..sample_end]
@@ -169,14 +169,14 @@ impl MusicSample {
         match format {
             MusicType::Mus => {
                 // TODO: need to get hands on WAD with MUS files to implement parser
-                Err(WADError::MusicSampleInvalidFormat)
+                Err(WadError::MusicSampleInvalidFormat)
             }
             MusicType::Midi => Ok(Self {
                 sample_rate: synthesizer.get_sample_rate(),
                 sample_channels: if is_stereo { 2 } else { 1 },
                 sample: synthesizer.synth(midi_data, is_stereo),
             }),
-            MusicType::Unknown => Err(WADError::MusicSampleInvalidFormat),
+            MusicType::Unknown => Err(WadError::MusicSampleInvalidFormat),
         }
     }
 }
@@ -207,7 +207,7 @@ impl MidiSynthesizer {
 
     pub fn new(sound_font: &[u8], sample_rate: SampleRate) -> Result<Self> {
         if !(Self::MIN_SAMPLE_RATE..=Self::MAX_SAMPLE_RATE).contains(&sample_rate) {
-            return Err(WADError::MidiSynthesizerInvalidSampleRate { sample_rate });
+            return Err(WadError::MidiSynthesizerInvalidSampleRate { sample_rate });
         }
         let sound_font = {
             let mut cursor = Cursor::new(sound_font);

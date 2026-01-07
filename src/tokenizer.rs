@@ -1,8 +1,8 @@
-use crate::error::WADError;
+use crate::error::WadError;
 use crate::header::Header;
 use crate::lump::{LUMP_ENTRY_LENGTH, LumpRef};
 
-type Error = WADError;
+type Error = WadError;
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,7 +43,7 @@ impl<'a> TryFrom<LumpRef<'a>> for LumpToken<'a> {
             } else if LumpToken::is_end_marker(name) {
                 Ok(LumpToken::MarkerEnd(name))
             } else {
-                Err(WADError::UnknownMarkerType)
+                Err(WadError::UnknownMarkerType)
             }
         } else {
             Ok(LumpToken::Lump(name, lump_ref))
@@ -62,7 +62,7 @@ impl<'a> TokenIterator<'a> {
         let directory_offset = header.info_table_offset as usize;
         let directory_end = directory_offset + (header.num_lumps as usize * LUMP_ENTRY_LENGTH);
         if data.len() < directory_end {
-            Err(WADError::TokenDataTooSmall)
+            Err(WadError::TokenDataTooSmall)
         } else {
             Ok(TokenIterator {
                 data,
