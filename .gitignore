@@ -2,3 +2,5 @@
 Cargo.lock
 target/
 assets/img/*.png
+# extracted demo output (generated, contains third-party game assets)
+demos/assets/img/
